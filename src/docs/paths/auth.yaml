@@ -1,0 +1,92 @@
+tags:
+  - name: Auth
+    description: Authentication endpoints
+
+paths:
+  /auth/google:
+    post:
+      summary: Login with Google via Supabase OAuth token
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - access_token
+              properties:
+                access_token:
+                  type: string
+                  description: Supabase access token received after Google OAuth
+            example:
+              access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Login successful
+                  data:
+                    type: object
+                    properties:
+                      access_token:
+                        type: string
+                      user:
+                        type: object
+                        properties:
+                          user_id:
+                            type: string
+                          full_name:
+                            type: string
+                          email:
+                            type: string
+                          identity_code:
+                            type: string
+                          address:
+                            type: string
+                          role:
+                            type: object
+                            properties:
+                              id:
+                                type: integer
+                              name:
+                                type: string
+        '400':
+          description: Missing access_token
+        '401':
+          description: Token invalid or email not registered in system
+        '403':
+          description: Account is deactivated
+
+  /auth/me:
+    get:
+      summary: Get current authenticated user info
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        type: object
+        '401':
+          description: Unauthorized - missing or invalid token
