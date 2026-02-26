@@ -5,6 +5,8 @@ import subjectsRoutes from './subjects.route.js';
 import favoritesRoutes from './favorites.route.js';
 import borrowRoutes from './borrow.route.js';
 import copiesRoutes from './copies.route.js';
+import postsRoutes from './posts.route.js';
+import commentsRoutes from './comments.route.js';
 
 const router = express.Router();
 
@@ -19,5 +21,7 @@ router.use('/', subjectsRoutes);
 router.use('/', favoritesRoutes);
 router.use('/', borrowRoutes);
 router.use('/', copiesRoutes);
+router.use('/', postsRoutes);
+router.use('/', commentsRoutes);
 
 export default router;

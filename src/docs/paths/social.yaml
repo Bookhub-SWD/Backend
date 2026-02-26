@@ -1,0 +1,211 @@
+tags:
+  - name: Social
+    description: Book sharing, comments, and likes
+
+paths:
+  /posts:
+    get:
+      summary: List all shared posts
+      tags: [Social]
+      parameters:
+        - in: query
+          name: book_id
+          schema: { type: integer }
+          description: Filter by book
+        - in: query
+          name: user_id
+          schema: { type: string, format: uuid }
+          description: Filter by user
+      responses:
+        '200':
+          description: List of posts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Post'
+
+    post:
+      summary: Share a thought on a book (Create Post)
+      tags: [Social]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [book_id, content]
+              properties:
+                book_id:
+                  type: integer
+                  example: 1
+                content:
+                  type: string
+                  example: "This book is amazing! Highly recommended."
+                image_url:
+                  type: string
+                  example: "https://example.com/image.jpg"
+      responses:
+        '201':
+          description: Post created successfully
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+
+  /posts/{id}:
+    delete:
+      summary: Delete a post (Owner only)
+      tags: [Social]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Post deleted
+
+  /posts/{id}/like:
+    post:
+      summary: Toggle like on a post
+      tags: [Social]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Like toggled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  message: { type: string }
+                  liked: { type: boolean }
+
+  /posts/{postId}/comments:
+    get:
+      summary: Get comments for a post (Tree structure)
+      tags: [Social]
+      parameters:
+        - in: path
+          name: postId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Nested list of comments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Comment'
+
+    post:
+      summary: Add a comment or reply to a post
+      tags: [Social]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: postId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        description: Comment content
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+                  example: "I totally agree with you!"
+                parent_id:
+                  type: integer
+                  description: "ID of the parent comment if this is a reply (optional)"
+                  example: null
+      responses:
+        '201':
+          description: Comment added successfully
+
+  /comments/{id}:
+    delete:
+      summary: Delete a comment (Owner only)
+      tags: [Social]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Comment deleted
+
+components:
+  schemas:
+    Post:
+      type: object
+      properties:
+        id: { type: integer }
+        content: { type: string }
+        image_url: { type: string }
+        status: { type: string }
+        created_at: { type: string, format: date-time }
+        like_count: { type: integer }
+        comment_count: { type: integer }
+        is_liked: { type: boolean }
+        user:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            full_name: { type: string }
+            avatar_url: { type: string }
+        book:
+          type: object
+          properties:
+            id: { type: integer }
+            title: { type: string }
+            url_img: { type: string }
+    
+    Comment:
+      type: object
+      properties:
+        id: { type: integer }
+        content: { type: string }
+        parent_id: { type: integer }
+        created_at: { type: string, format: date-time }
+        user:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            full_name: { type: string }
+            avatar_url: { type: string }
+        replies:
+          type: array
+          items:
+            $ref: '#/components/schemas/Comment'

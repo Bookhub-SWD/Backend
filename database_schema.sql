@@ -87,6 +87,42 @@ CREATE TABLE public.favorite_books (
   CONSTRAINT favorite_books_book_id_fkey FOREIGN KEY (book_id) REFERENCES public.books(id)
 );
 
+CREATE TABLE public.posts (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  user_id uuid NOT NULL DEFAULT auth.uid(),
+  book_id bigint NOT NULL,
+  content text NOT NULL,
+  image_url text,
+  status text NOT NULL DEFAULT 'published', 
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT posts_pkey PRIMARY KEY (id),
+  CONSTRAINT posts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT posts_book_id_fkey FOREIGN KEY (book_id) REFERENCES public.books(id)
+);
+
+CREATE TABLE public.comments (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  post_id bigint NOT NULL,
+  user_id uuid NOT NULL DEFAULT auth.uid(),
+  parent_id bigint, 
+  content text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT comments_pkey PRIMARY KEY (id),
+  CONSTRAINT comments_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.posts(id) ON DELETE CASCADE,
+  CONSTRAINT comments_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT comments_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.comments(id) ON DELETE CASCADE
+);
+
+CREATE TABLE public.post_likes (
+  post_id bigint NOT NULL,
+  user_id uuid NOT NULL DEFAULT auth.uid(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT post_likes_pkey PRIMARY KEY (post_id, user_id),
+  CONSTRAINT post_likes_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.posts(id) ON DELETE CASCADE,
+  CONSTRAINT post_likes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+
 CREATE TABLE public.borrow_records (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   user_id uuid NOT NULL DEFAULT auth.uid(),

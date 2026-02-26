@@ -4,13 +4,10 @@ import { authenticate, isAdmin } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
-// All copy routes require authentication and admin/staff privileges
-router.use(authenticate, isAdmin);
-
-router.get('/copies', getCopies);
-router.get('/copies/:id', getCopyById);
-router.post('/copies', createCopy);
-router.put('/copies/:id', updateCopy);
-router.delete('/copies/:id', deleteCopy);
+router.get('/copies', authenticate, isAdmin, getCopies);
+router.get('/copies/:id', authenticate, isAdmin, getCopyById);
+router.post('/copies', authenticate, isAdmin, createCopy);
+router.put('/copies/:id', authenticate, isAdmin, updateCopy);
+router.delete('/copies/:id', authenticate, isAdmin, deleteCopy);
 
 export default router;
