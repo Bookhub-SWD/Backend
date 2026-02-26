@@ -5,15 +5,21 @@ tags:
 paths:
   /books:
     get:
-      summary: Get all books, optionally filtered by subject
+      summary: Get all books, filtered by title, code, or category
       tags: [Books]
       parameters:
         - in: query
-          name: subject
-          schema:
-            type: string
-          required: false
-          description: Partial match on subject code or name
+          name: title
+          schema: { type: string }
+          description: Filter by book title
+        - in: query
+          name: subject_code
+          schema: { type: string }
+          description: Filter by subject code (e.g. PRF192)
+        - in: query
+          name: category
+          schema: { type: string }
+          description: Filter by subject category (e.g. SE, AI)
       responses:
         '200':
           description: List of books

@@ -17,7 +17,7 @@ app.listen(PORT, () => {
   console.log(`  ${chalk.green('GET')}    ${chalk.white(`${BASE_URL}/health`)}`);
   console.log(`  ${chalk.yellow('POST')}   ${chalk.white(`${BASE_URL}/api/auth/google`)}`);
   console.log(`  ${chalk.green('GET')}    ${chalk.white(`${BASE_URL}/api/auth/me`)}`);
-  console.log(`  ${chalk.green('GET')}    ${chalk.white(`${BASE_URL}/api/books`)}  ${chalk.dim('?subject=<opt>')}`);
+  console.log(`  ${chalk.green('GET')}    ${chalk.white(`${BASE_URL}/api/books`)}  ${chalk.dim('?title=&subject_code=&category=')}`);
   console.log(`  ${chalk.yellow('POST')}   ${chalk.white(`${BASE_URL}/api/books`)}`);
   console.log(`  ${chalk.blue('PUT')}    ${chalk.white(`${BASE_URL}/api/books/:id`)}`);
   console.log(`  ${chalk.red('DELETE')} ${chalk.white(`${BASE_URL}/api/books/:id`)}`);

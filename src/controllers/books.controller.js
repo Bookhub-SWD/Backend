@@ -7,46 +7,55 @@ import { supabase } from '../lib/supabase.js';
  */
 export const getBooks = async (req, res) => {
   try {
-    const { subject } = req.query;
+    const { title, subject_code, category } = req.query;
 
-    // Base query: books joined with book_subjects + subjects
+    // Base query
     let query = supabase
       .from('books')
       .select(`
         *,
-        library:library_id (
-          id,
-          name,
-          location
-        ),
+        library:library_id (id, name, location),
         book_subjects (
-          subject:subject_code (
-            code,
-            name,
-            category
-          )
+          subject:subject_code (code, name, category)
         )
       `);
 
-    if (subject && subject.trim() !== '') {
-      const { data: matchedSubjects, error: subjectError } = await supabase
-        .from('subjects')
-        .select('code')
-        .or(`code.ilike.%${subject}%,name.ilike.%${subject}%`);
+    // 1. Filter by Title (if provided)
+    if (title && title.trim() !== '') {
+      query = query.ilike('title', `%${title.trim()}%`);
+    }
 
-      if (subjectError) return res.status(500).json({ ok: false, message: subjectError.message });
-      if (!matchedSubjects || matchedSubjects.length === 0) return res.status(200).json({ ok: true, data: [] });
+    // 2. Filter by Subjects (if code or category provided)
+    if (
+      (subject_code && subject_code.trim() !== '') || 
+      (category && category.trim() !== '')
+    ) {
+      let subjectQuery = supabase.from('subjects').select('code');
+      
+      if (subject_code && subject_code.trim() !== '') {
+        subjectQuery = subjectQuery.ilike('code', `%${subject_code.trim()}%`);
+      }
+      if (category && category.trim() !== '') {
+        subjectQuery = subjectQuery.ilike('category', `%${category.trim()}%`);
+      }
 
-      const codes = matchedSubjects.map((s) => s.code);
-      const { data: bookSubjects, error: bsError } = await supabase
+      const { data: matchedSubjects } = await subjectQuery;
+
+      if (!matchedSubjects || matchedSubjects.length === 0) {
+        return res.status(200).json({ ok: true, data: [] });
+      }
+
+      const codes = matchedSubjects.map(s => s.code);
+      const { data: bookSubjects } = await supabase
         .from('book_subjects')
         .select('book_id')
         .in('subject_code', codes);
 
-      if (bsError) return res.status(500).json({ ok: false, message: bsError.message });
-      if (!bookSubjects || bookSubjects.length === 0) return res.status(200).json({ ok: true, data: [] });
+      if (!bookSubjects || bookSubjects.length === 0) {
+        return res.status(200).json({ ok: true, data: [] });
+      }
 
-      const bookIds = [...new Set(bookSubjects.map((b) => b.book_id))];
+      const bookIds = [...new Set(bookSubjects.map(b => b.book_id))];
       query = query.in('id', bookIds);
     }
 
