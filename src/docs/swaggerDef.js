@@ -1,4 +1,9 @@
 import swaggerJsdoc from 'swagger-jsdoc';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const PORT = process.env.PORT || 3000;
 
 const options = {
   definition: {
@@ -10,12 +15,12 @@ const options = {
     },
     servers: [
       {
-        url: 'http://localhost:3001/api',
+        url: `http://localhost:${PORT}/api`,
         description: 'Development server',
       },
     ],
   },
-  apis: ['./src/docs/*.yaml', './src/docs/paths/*.yaml'], // Files containing annotations
+  apis: ['./src/docs/*.yaml', './src/docs/paths/*.yaml'],
 };
 
 const swaggerSpec = swaggerJsdoc(options);

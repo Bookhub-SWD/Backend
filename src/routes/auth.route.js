@@ -4,8 +4,7 @@ import { authenticate } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
-router.post('/google', googleLogin);
-router.get('/me', authenticate, getMe);
+router.post('/auth/google', googleLogin);
+router.get('/auth/me', authenticate, getMe);
 
 export default router;
-

@@ -1,5 +1,6 @@
 import express from 'express';
 import authRoutes from './auth.route.js';
+import booksRoutes from './books.route.js';
 
 const router = express.Router();
 
@@ -8,7 +9,7 @@ router.get('/', (req, res) => {
   res.json({ message: 'Welcome to BookHub API' });
 });
 
-// Auth routes
-router.use('/auth', authRoutes);
+router.use('/', authRoutes);
+router.use('/', booksRoutes);
 
 export default router;

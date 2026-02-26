@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Login Test (via Supabase)</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 40px;
+            background-color: #f8f9fa;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 { color: #3ecf8e; margin-bottom: 30px; }
+        .section {
+            margin-top: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #fff;
+        }
+        .label { font-weight: bold; color: #555; display: block; margin-bottom: 8px; }
+        pre {
+            background: #272822;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 13px;
+            max-height: 400px;
+        }
+        button {
+            background-color: #3ecf8e;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover { background-color: #34b27b; }
+        .error { color: #d93025; border-color: #f8d7da; background: #fce8e6; }
+        .success { color: #188038; border-color: #ceead6; background: #e6f4ea; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Google Login Test (via Supabase)</h1>
+        
+        <p>Click the button below to sign in with Google via Supabase.</p>
+        <button id="loginBtn">Sign in with Google</button>
+
+        <div id="statusInfo" class="section" style="display: none;">
+            <span class="label">Status:</span>
+            <p id="statusTxt">Loading...</p>
+        </div>
+
+        <div id="googleResult" class="section" style="display: none;">
+            <span class="label">Supabase Session (Access Token):</span>
+            <pre id="googleToken"></pre>
+        </div>
+
+        <div id="backendResult" class="section" style="display: none;">
+            <span class="label">Backend Response (/api/auth/google):</span>
+            <pre id="backendJson"></pre>
+        </div>
+    </div>
+
+    <script>
+        // Cấu hình từ file .env của bạn
+        const SUPABASE_URL = "https://kctczangjupusmamlozw.supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjdGN6YW5nanVwdXNtYW1sb3p3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4MjgyMzMsImV4cCI6MjA4NzQwNDIzM30.SUdU03voEX_KssRJni0Qa41YVZ41GXNQlb7cjzHBXTk";
+        
+        // Đổi tên biến để tránh trùng với global 'supabase' của library
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const loginBtn = document.getElementById('loginBtn');
+        const statusInfo = document.getElementById('statusInfo');
+        const statusTxt = document.getElementById('statusTxt');
+
+        loginBtn.onclick = async () => {
+            console.log("Login button clicked");
+            const { data, error } = await supabaseClient.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: window.location.href
+                }
+            });
+            if (error) {
+                console.error("Login error:", error);
+                statusInfo.style.display = 'block';
+                statusTxt.textContent = "Error: " + error.message;
+            }
+        };
+
+        async function checkSession() {
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
+            
+            if (session) {
+                document.getElementById('googleResult').style.display = 'block';
+                document.getElementById('googleToken').textContent = session.access_token;
+
+                statusInfo.style.display = 'block';
+                statusTxt.textContent = "Supabase login success! Calling backend...";
+
+                // Gọi backend của bạn
+                fetch('http://localhost:3000/api/auth/google', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        access_token: session.access_token
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('backendResult').style.display = 'block';
+                    const resultDiv = document.getElementById('backendResult');
+                    if (data.ok) {
+                        resultDiv.className = 'section success';
+                        statusTxt.textContent = "Backend login success!";
+                    } else {
+                        resultDiv.className = 'section error';
+                        statusTxt.textContent = "Backend error: " + data.message;
+                    }
+                    document.getElementById('backendJson').textContent = JSON.stringify(data, null, 2);
+                })
+                .catch(err => {
+                    document.getElementById('backendResult').style.display = 'block';
+                    document.getElementById('backendResult').className = 'section error';
+                    document.getElementById('backendJson').textContent = 'Error calling backend: ' + err.message;
+                });
+            }
+        }
+
+        window.onload = checkSession;
+    </script>
+</body>
+</html>

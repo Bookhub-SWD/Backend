@@ -22,13 +22,13 @@ export const authenticate = async (req, res, next) => {
       return res.status(401).json({ ok: false, message: 'Invalid or expired token' });
     }
 
-    const email = authData.user.email;
+    const authUserId = authData.user.id;
 
-    // Kiểm tra email trong public.users
+    // Kiểm tra user trong public.users theo ID của auth
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('user_id, full_name, email, identity_code, address, status, roles(id, name)')
-      .eq('email', email)
+      .select('id, full_name, email, identity_code, address, status, roles(id, name)')
+      .eq('id', authUserId)
       .single();
 
     if (userError || !user) {

@@ -43,7 +43,7 @@ paths:
                       user:
                         type: object
                         properties:
-                          user_id:
+                          id:
                             type: string
                           full_name:
                             type: string
