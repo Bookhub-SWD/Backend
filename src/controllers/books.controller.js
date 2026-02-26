@@ -186,3 +186,48 @@ export const deleteBook = async (req, res) => {
     return res.status(500).json({ ok: false, message: 'Internal server error' });
   }
 };
+
+/**
+ * GET /api/books/search?q=xxx
+ * Search books that contain the keyword in their 'keyword' array.
+ */
+export const searchBooksByKeyword = async (req, res) => {
+  try {
+    const { q } = req.query;
+
+    if (!q || q.trim() === '') {
+      return res.status(400).json({ ok: false, message: 'Query parameter q is required' });
+    }
+
+    // 1. Get matching book IDs from RPC
+    const { data: matchedIds, error: rpcError } = await supabase
+      .rpc('get_book_ids_by_keyword', { search_term: q.trim() });
+
+    if (rpcError) return res.status(500).json({ ok: false, message: rpcError.message });
+
+    if (!matchedIds || matchedIds.length === 0) {
+      return res.status(200).json({ ok: true, data: [] });
+    }
+
+    const ids = matchedIds.map(item => item.id);
+
+    // 2. Fetch full book details for these IDs
+    const { data: books, error: fetchError } = await supabase
+      .from('books')
+      .select(`
+        *,
+        library:library_id (id, name, location),
+        book_subjects (
+          subject:subject_code (code, name, category)
+        )
+      `)
+      .in('id', ids);
+
+    if (fetchError) return res.status(500).json({ ok: false, message: fetchError.message });
+
+    return res.status(200).json({ ok: true, data: books });
+  } catch (err) {
+    console.error('searchBooksByKeyword error:', err);
+    return res.status(500).json({ ok: false, message: 'Internal server error' });
+  }
+};

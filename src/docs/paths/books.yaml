@@ -63,6 +63,27 @@ paths:
         '400':
           description: Invalid input
 
+  /books/search:
+    get:
+      summary: Search books by keyword
+      tags: [Books]
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema: { type: string }
+          description: Keyword to search for in the book's keyword array
+      responses:
+        '200':
+          description: List of books matching the keyword
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  data: { type: array, items: { $ref: '#/components/schemas/Book' } }
+
   /books/{id}:
     put:
       summary: Update a book
