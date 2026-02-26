@@ -186,3 +186,110 @@ export const deleteBook = async (req, res) => {
     return res.status(500).json({ ok: false, message: 'Internal server error' });
   }
 };
+
+/**
+ * GET /api/books/search?q=xxx
+ * Search books that contain the keyword in their 'keyword' array.
+ */
+export const searchBooksByKeyword = async (req, res) => {
+  try {
+    const { q } = req.query;
+
+    if (!q || q.trim() === '') {
+      return res.status(400).json({ ok: false, message: 'Query parameter q is required' });
+    }
+
+    // 1. Get matching book IDs from RPC
+    const { data: matchedIds, error: rpcError } = await supabase
+      .rpc('get_book_ids_by_keyword', { search_term: q.trim() });
+
+    if (rpcError) return res.status(500).json({ ok: false, message: rpcError.message });
+
+    if (!matchedIds || matchedIds.length === 0) {
+      return res.status(200).json({ ok: true, data: [] });
+    }
+
+    const ids = matchedIds.map(item => item.id);
+
+    // 2. Fetch full book details for these IDs
+    const { data: books, error: fetchError } = await supabase
+      .from('books')
+      .select(`
+        *,
+        library:library_id (id, name, location),
+        book_subjects (
+          subject:subject_code (code, name, category)
+        )
+      `)
+      .in('id', ids);
+
+    if (fetchError) return res.status(500).json({ ok: false, message: fetchError.message });
+
+    return res.status(200).json({ ok: true, data: books });
+  } catch (err) {
+    console.error('searchBooksByKeyword error:', err);
+    return res.status(500).json({ ok: false, message: 'Internal server error' });
+  }
+};
+
+/**
+ * GET /api/books/:id
+ * Get detailed book info, including reviews and average score.
+ */
+export const getBookDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // 1. Fetch Book Data (with library and subjects)
+    const { data: book, error: bookError } = await supabase
+      .from('books')
+      .select(`
+        *,
+        library:library_id (id, name, location),
+        book_subjects (
+          subject:subject_code (code, name, category)
+        )
+      `)
+      .eq('id', id)
+      .single();
+
+    if (bookError) {
+      if (bookError.code === 'PGRST116') return res.status(404).json({ ok: false, message: 'Book not found' });
+      return res.status(500).json({ ok: false, message: bookError.message });
+    }
+
+    // 2. Fetch Reviews (with reviewer name)
+    const { data: reviews, error: reviewsError } = await supabase
+      .from('reviews')
+      .select(`
+        id,
+        content,
+        score,
+        created_at,
+        user:user_id (id, full_name)
+      `)
+      .eq('book_id', id);
+
+    if (reviewsError) return res.status(500).json({ ok: false, message: reviewsError.message });
+
+    // 3. Calculate Average Score
+    let avgScore = 0;
+    if (reviews && reviews.length > 0) {
+      const total = reviews.reduce((sum, review) => sum + Number(review.score), 0);
+      avgScore = Number((total / reviews.length).toFixed(1));
+    }
+
+    return res.status(200).json({
+      ok: true,
+      data: {
+        ...book,
+        reviews: reviews || [],
+        average_score: avgScore,
+        total_reviews: reviews ? reviews.length : 0
+      }
+    });
+  } catch (err) {
+    console.error('getBookDetail error:', err);
+    return res.status(500).json({ ok: false, message: 'Internal server error' });
+  }
+};
