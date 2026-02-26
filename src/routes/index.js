@@ -3,6 +3,8 @@ import authRoutes from './auth.route.js';
 import booksRoutes from './books.route.js';
 import subjectsRoutes from './subjects.route.js';
 import favoritesRoutes from './favorites.route.js';
+import borrowRoutes from './borrow.route.js';
+import copiesRoutes from './copies.route.js';
 
 const router = express.Router();
 
@@ -15,5 +17,7 @@ router.use('/', authRoutes);
 router.use('/', booksRoutes);
 router.use('/', subjectsRoutes);
 router.use('/', favoritesRoutes);
+router.use('/', borrowRoutes);
+router.use('/', copiesRoutes);
 
 export default router;

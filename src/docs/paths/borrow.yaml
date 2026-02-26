@@ -1,0 +1,117 @@
+tags:
+  - name: Borrowing
+    description: Book borrowing and physical copy management
+
+paths:
+  /borrow/request:
+    post:
+      summary: User requests to borrow a book
+      tags: [Borrowing]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [book_id]
+              properties:
+                book_id: { type: integer }
+      responses:
+        '201':
+          description: Request created successfully (returns request_code)
+        '200':
+          description: No copies available, added to waiting list
+        '400':
+          description: Already has active request/borrow or invalid input
+
+  /borrow/approve:
+    post:
+      summary: Librarian approves a borrow request (Staff only)
+      tags: [Borrowing]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [request_code]
+              properties:
+                request_code: { type: string, description: "Code from user's app" }
+                days_to_borrow: { type: integer, default: 14 }
+      responses:
+        '200':
+          description: Borrow approved
+        '404':
+          description: Request not found or invalid status
+
+  /borrow/return:
+    post:
+      summary: Librarian records book return (Staff only)
+      tags: [Borrowing]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [barcode]
+              properties:
+                barcode: { type: string, description: "Physical book barcode" }
+      responses:
+        '200':
+          description: Book returned successfully (and next person in queue notified if any)
+        '404':
+          description: Copy or active borrow record not found
+
+  /borrow/me:
+    get:
+      summary: Get current user's borrow history and active requests
+      tags: [Borrowing]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of borrow records
+
+  /borrow/all:
+    get:
+      summary: Get all borrow records (Admin/Staff only)
+      tags: [Borrowing]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of all borrow records
+        '403':
+          description: Forbidden
+
+components:
+  schemas:
+    StatusDefinitions:
+      description: |
+        ### Status Reference
+        
+        **book_copies.status**
+        * `available`: Ready to be borrowed.
+        * `borrowed`: Currently with a user.
+        * `reserved`: Held for a specific user (request approved or notified from queue).
+        * `lost`: Copy is missing.
+        
+        **borrow_records.status**
+        * `requested`: User has requested to borrow, waiting for librarian scan.
+        * `borrowed`: Active borrow.
+        * `returned`: Book has been returned successfully.
+        * `overdue`: Past the due date and not returned.
+        * `cancelled`: Request was cancelled (by user or timed out).
+        
+        **reservations.status**
+        * `waiting`: In queue for an unavailable book.
+        * `notified`: A copy became available and the user was notified.
+        * `fulfilled`: User successfully converted reservation to a borrow request.
+        * `cancelled`: User left the queue.

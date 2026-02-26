@@ -58,6 +58,17 @@ CREATE TABLE public.books (
   CONSTRAINT books_library_id_fkey FOREIGN KEY (library_id) REFERENCES public.library(id)
 );
 
+CREATE TABLE public.book_copies (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  book_id bigint NOT NULL,
+  barcode text NOT NULL UNIQUE,
+  status text NOT NULL DEFAULT 'available'::text, -- available, borrowed, reserved, lost
+  condition text, -- new, good, worn, damaged
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT book_copies_pkey PRIMARY KEY (id),
+  CONSTRAINT book_copies_book_id_fkey FOREIGN KEY (book_id) REFERENCES public.books(id)
+);
+
 CREATE TABLE public.book_subjects (
   book_id bigint NOT NULL,
   subject_code text NOT NULL,
@@ -65,6 +76,43 @@ CREATE TABLE public.book_subjects (
   CONSTRAINT book_subjects_pkey PRIMARY KEY (book_id, subject_code),
   CONSTRAINT book_subjects_book_id_fkey FOREIGN KEY (book_id) REFERENCES public.books(id),
   CONSTRAINT book_subjects_subject_code_fkey FOREIGN KEY (subject_code) REFERENCES public.subjects(code)
+);
+
+CREATE TABLE public.favorite_books (
+  user_id uuid NOT NULL DEFAULT auth.uid(),
+  book_id bigint NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT favorite_books_pkey PRIMARY KEY (user_id, book_id),
+  CONSTRAINT favorite_books_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT favorite_books_book_id_fkey FOREIGN KEY (book_id) REFERENCES public.books(id)
+);
+
+CREATE TABLE public.borrow_records (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  user_id uuid NOT NULL DEFAULT auth.uid(),
+  copy_id bigint NOT NULL,
+  status text NOT NULL DEFAULT 'requested'::text, -- requested, borrowed, returned, overdue, cancelled
+  request_code text NOT NULL UNIQUE,
+  request_date timestamp with time zone NOT NULL DEFAULT now(),
+  borrow_date timestamp with time zone,
+  due_date timestamp with time zone,
+  return_date timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT borrow_records_pkey PRIMARY KEY (id),
+  CONSTRAINT borrow_records_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT borrow_records_copy_id_fkey FOREIGN KEY (copy_id) REFERENCES public.book_copies(id)
+);
+
+CREATE TABLE public.reservations (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  user_id uuid NOT NULL DEFAULT auth.uid(),
+  book_id bigint NOT NULL,
+  status text NOT NULL DEFAULT 'waiting'::text, -- waiting, notified, fulfilled, cancelled
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  notified_at timestamp with time zone,
+  CONSTRAINT reservations_pkey PRIMARY KEY (id),
+  CONSTRAINT reservations_book_id_fkey FOREIGN KEY (book_id) REFERENCES public.books(id),
+  CONSTRAINT reservations_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
 
 CREATE TABLE public.reviews (
@@ -77,15 +125,6 @@ CREATE TABLE public.reviews (
   CONSTRAINT reviews_pkey PRIMARY KEY (id),
   CONSTRAINT reviews_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
   CONSTRAINT reviews_book_id_fkey FOREIGN KEY (book_id) REFERENCES public.books(id)
-);
-
-CREATE TABLE public.favorite_books (
-  user_id uuid NOT NULL DEFAULT auth.uid(),
-  book_id bigint NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT favorite_books_pkey PRIMARY KEY (user_id, book_id),
-  CONSTRAINT favorite_books_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
-  CONSTRAINT favorite_books_book_id_fkey FOREIGN KEY (book_id) REFERENCES public.books(id)
 );
 
 -- ==========================================

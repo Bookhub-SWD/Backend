@@ -53,3 +53,20 @@ export const authenticate = async (req, res, next) => {
     return res.status(500).json({ ok: false, message: 'Internal server error' });
   }
 };
+
+/**
+ * Middleware kiểm tra quyền admin/staff.
+ * Yêu cầu req.user đã được attach từ authenticate middleware.
+ */
+export const isAdmin = (req, res, next) => {
+  if (!req.user || !req.user.roles) {
+    return res.status(403).json({ ok: false, message: 'Forbidden: No user roles found' });
+  }
+
+  const roleName = req.user.roles.name.toLowerCase();
+  if (roleName !== 'admin' && roleName !== 'librarian' && roleName !== 'staff') {
+    return res.status(403).json({ ok: false, message: 'Forbidden: You do not have permission to access this resource' });
+  }
+
+  next();
+};

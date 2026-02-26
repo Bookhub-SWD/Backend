@@ -1,0 +1,97 @@
+tags:
+  - name: Book Copies
+    description: Physical book copies management (Admin/Staff only)
+
+paths:
+  /copies:
+    get:
+      summary: List all book copies
+      tags: [Book Copies]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: book_id
+          schema: { type: integer }
+          description: Filter by book ID
+      responses:
+        '200':
+          description: List of copies
+        '403':
+          description: Forbidden
+
+    post:
+      summary: Create a new book copy
+      tags: [Book Copies]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [book_id, barcode]
+              properties:
+                book_id: { type: integer }
+                barcode: { type: string }
+                condition: { type: string, default: "good" }
+      responses:
+        '201':
+          description: Copy created
+        '403':
+          description: Forbidden
+
+  /copies/{id}:
+    get:
+      summary: Get copy details
+      tags: [Book Copies]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Copy details
+        '404':
+          description: Not found
+
+    put:
+      summary: Update a book copy
+      tags: [Book Copies]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                barcode: { type: string }
+                status: { type: string }
+                condition: { type: string }
+      responses:
+        '200':
+          description: Copy updated
+
+    delete:
+      summary: Delete a book copy
+      tags: [Book Copies]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Copy deleted
