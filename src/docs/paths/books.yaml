@@ -121,6 +121,12 @@ paths:
                                     full_name: { type: string }
                           average_score: { type: number }
                           total_reviews: { type: integer }
+                          total_copies: { type: integer }
+                          available_copies: { type: integer }
+                          copies:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/BookCopy'
 
     put:
       summary: Update a book
@@ -178,11 +184,14 @@ components:
         description: { type: string }
         created_at: { type: string, format: date-time }
         url_img: { type: string }
+        total_copies: { type: integer }
+        available_copies: { type: integer }
         library:
           type: object
           properties:
             id: { type: integer }
             name: { type: string }
+            location: { type: string }
         book_subjects:
           type: array
           items:
@@ -193,3 +202,13 @@ components:
                 properties:
                   code: { type: string }
                   name: { type: string }
+                  category: { type: string }
+    
+    BookCopy:
+      type: object
+      properties:
+        id: { type: integer }
+        barcode: { type: string }
+        status: { type: string }
+        condition: { type: string }
+        created_at: { type: string, format: date-time }

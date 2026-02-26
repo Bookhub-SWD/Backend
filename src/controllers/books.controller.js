@@ -21,7 +21,8 @@ export const getBooks = async (req, res) => {
         library:library_id (id, name, location),
         book_subjects (
           subject:subject_code (code, name, category)
-        )
+        ),
+        book_copies(status)
       `, { count: 'exact' });
 
     // 1. Filter by Title (if provided)
@@ -69,9 +70,23 @@ export const getBooks = async (req, res) => {
 
     if (error) return res.status(500).json({ ok: false, message: error.message });
 
+    // Process copy counts
+    const booksWithCounts = books.map(book => {
+      const copies = book.book_copies || [];
+      const total_copies = copies.length;
+      const available_copies = copies.filter(c => c.status === 'available').length;
+      
+      const { book_copies, ...bookInfo } = book;
+      return {
+        ...bookInfo,
+        total_copies,
+        available_copies
+      };
+    });
+
     return res.status(200).json({ 
       ok: true, 
-      data: books,
+      data: booksWithCounts,
       pagination: {
         page,
         limit,
@@ -264,7 +279,8 @@ export const getBookDetail = async (req, res) => {
         library:library_id (id, name, location),
         book_subjects (
           subject:subject_code (code, name, category)
-        )
+        ),
+        book_copies (*)
       `)
       .eq('id', id)
       .single();
@@ -295,13 +311,23 @@ export const getBookDetail = async (req, res) => {
       avgScore = Number((total / reviews.length).toFixed(1));
     }
 
+    // 4. Calculate Copy Counts
+    const copies = book.book_copies || [];
+    const total_copies = copies.length;
+    const available_copies = copies.filter(c => c.status === 'available').length;
+
+    const { book_copies, ...bookInfo } = book;
+
     return res.status(200).json({
       ok: true,
       data: {
-        ...book,
+        ...bookInfo,
         reviews: reviews || [],
         average_score: avgScore,
-        total_reviews: reviews ? reviews.length : 0
+        total_reviews: reviews ? reviews.length : 0,
+        total_copies,
+        available_copies,
+        copies: book_copies // Detail might want the full list of copies (barcode, status)
       }
     });
   } catch (err) {

@@ -14,7 +14,8 @@ export const getFavorites = async (req, res) => {
         created_at,
         book:book_id (
           *,
-          library:library_id (id, name, location)
+          library:library_id (id, name, location),
+          book_copies(status)
         )
       `)
       .eq('user_id', userId)
@@ -22,7 +23,24 @@ export const getFavorites = async (req, res) => {
 
     if (error) return res.status(500).json({ ok: false, message: error.message });
 
-    return res.status(200).json({ ok: true, data: favorites });
+    // Process copy counts for favorites
+    const favoritesWithCounts = favorites.map(fav => {
+      const copies = fav.book?.book_copies || [];
+      const total_copies = copies.length;
+      const available_copies = copies.filter(c => c.status === 'available').length;
+
+      const { book_copies, ...bookInfo } = fav.book;
+      return {
+        ...fav,
+        book: {
+          ...bookInfo,
+          total_copies,
+          available_copies
+        }
+      };
+    });
+
+    return res.status(200).json({ ok: true, data: favoritesWithCounts });
   } catch (err) {
     console.error('getFavorites error:', err);
     return res.status(500).json({ ok: false, message: 'Internal server error' });
