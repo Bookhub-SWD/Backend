@@ -8,8 +8,12 @@ import { supabase } from '../lib/supabase.js';
 export const getBooks = async (req, res) => {
   try {
     const { title, subject_code, category } = req.query;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
 
-    // Base query
+    // Base query with count
     let query = supabase
       .from('books')
       .select(`
@@ -18,7 +22,7 @@ export const getBooks = async (req, res) => {
         book_subjects (
           subject:subject_code (code, name, category)
         )
-      `);
+      `, { count: 'exact' });
 
     // 1. Filter by Title (if provided)
     if (title && title.trim() !== '') {
@@ -42,7 +46,7 @@ export const getBooks = async (req, res) => {
       const { data: matchedSubjects } = await subjectQuery;
 
       if (!matchedSubjects || matchedSubjects.length === 0) {
-        return res.status(200).json({ ok: true, data: [] });
+        return res.status(200).json({ ok: true, data: [], pagination: { page, limit, total_items: 0, total_pages: 0 } });
       }
 
       const codes = matchedSubjects.map(s => s.code);
@@ -52,17 +56,29 @@ export const getBooks = async (req, res) => {
         .in('subject_code', codes);
 
       if (!bookSubjects || bookSubjects.length === 0) {
-        return res.status(200).json({ ok: true, data: [] });
+        return res.status(200).json({ ok: true, data: [], pagination: { page, limit, total_items: 0, total_pages: 0 } });
       }
 
       const bookIds = [...new Set(bookSubjects.map(b => b.book_id))];
       query = query.in('id', bookIds);
     }
 
-    const { data: books, error } = await query.order('created_at', { ascending: false });
+    const { data: books, error, count } = await query
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
     if (error) return res.status(500).json({ ok: false, message: error.message });
 
-    return res.status(200).json({ ok: true, data: books });
+    return res.status(200).json({ 
+      ok: true, 
+      data: books,
+      pagination: {
+        page,
+        limit,
+        total_items: count || 0,
+        total_pages: Math.ceil((count || 0) / limit)
+      }
+    });
   } catch (err) {
     console.error('getBooks error:', err);
     return res.status(500).json({ ok: false, message: 'Internal server error' });
