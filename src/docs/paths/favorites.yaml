@@ -1,0 +1,70 @@
+tags:
+  - name: Favorites
+    description: Favorite books management endpoints
+
+paths:
+  /favorites:
+    get:
+      summary: Get current user's favorite books
+      tags: [Favorites]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of favorite books
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        created_at: { type: string, format: date-time }
+                        book: { $ref: '#/components/schemas/Book' }
+        '401':
+          description: Unauthorized
+
+    post:
+      summary: Add a book to favorites
+      tags: [Favorites]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - book_id
+              properties:
+                book_id: { type: integer }
+      responses:
+        '201':
+          description: Book added to favorites
+        '400':
+          description: Book already in favorites or invalid input
+        '401':
+          description: Unauthorized
+
+  /favorites/{bookId}:
+    delete:
+      summary: Remove a book from favorites
+      tags: [Favorites]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: bookId
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Book removed from favorites
+        '401':
+          description: Unauthorized

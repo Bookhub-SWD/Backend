@@ -79,6 +79,15 @@ CREATE TABLE public.reviews (
   CONSTRAINT reviews_book_id_fkey FOREIGN KEY (book_id) REFERENCES public.books(id)
 );
 
+CREATE TABLE public.favorite_books (
+  user_id uuid NOT NULL DEFAULT auth.uid(),
+  book_id bigint NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT favorite_books_pkey PRIMARY KEY (user_id, book_id),
+  CONSTRAINT favorite_books_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT favorite_books_book_id_fkey FOREIGN KEY (book_id) REFERENCES public.books(id)
+);
+
 -- ==========================================
 -- RPC FUNCTIONS (Stored Procedures)
 -- ==========================================
