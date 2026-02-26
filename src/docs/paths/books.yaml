@@ -85,6 +85,43 @@ paths:
                   data: { type: array, items: { $ref: '#/components/schemas/Book' } }
 
   /books/{id}:
+    get:
+      summary: Get book details with reviews and average score
+      tags: [Books]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Detailed book info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/Book'
+                      - type: object
+                        properties:
+                          reviews:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id: { type: integer }
+                                content: { type: string }
+                                score: { type: integer }
+                                user:
+                                  type: object
+                                  properties:
+                                    full_name: { type: string }
+                          average_score: { type: number }
+                          total_reviews: { type: integer }
+
     put:
       summary: Update a book
       tags: [Books]
