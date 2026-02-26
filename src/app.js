@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import routes from './routes/index.js';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './docs/swaggerDef.js';
+import { requestLogger } from './middleware/request-logger.js';
 
 const app = express();
 
@@ -21,6 +22,9 @@ app.use(cors({
 // Body parser middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Request logger (chalk)
+app.use(requestLogger);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
