@@ -6,10 +6,6 @@ paths:
   /books:
     get:
       summary: Get all books, optionally filtered by subject
-      description: >
-        Returns a list of books. If the `subject` query parameter is provided,
-        returns only books linked to subjects whose **code** or **name** partially
-        matches the input (case-insensitive). If omitted, returns all books.
       tags: [Books]
       parameters:
         - in: query
@@ -17,8 +13,7 @@ paths:
           schema:
             type: string
           required: false
-          description: Partial match on subject code or name (e.g. "PRF", "192", "Programming")
-          example: PRF
+          description: Partial match on subject code or name
       responses:
         '200':
           description: List of books
@@ -27,78 +22,110 @@ paths:
               schema:
                 type: object
                 properties:
-                  ok:
-                    type: boolean
-                    example: true
-                  data:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        id:
-                          type: integer
-                        title:
-                          type: string
-                        author:
-                          type: string
-                        publisher:
-                          type: string
-                        isbn:
-                          type: integer
-                        keyword:
-                          type: array
-                          items:
-                            type: string
-                        description:
-                          type: string
-                        created_at:
-                          type: string
-                          format: date-time
-                        url_img:
-                          type: string
-                        library:
-                          type: object
-                          properties:
-                            id:
-                              type: integer
-                            name:
-                              type: string
-                            location:
-                              type: string
-                        book_subjects:
-                          type: array
-                          items:
-                            type: object
-                            properties:
-                              subject:
-                                type: object
-                                properties:
-                                  code:
-                                    type: string
-                                  name:
-                                    type: string
-                                  category:
-                                    type: string
-              example:
-                ok: true
-                data:
-                  - id: 1
-                    title: "Clean Code"
-                    author: "Robert C. Martin"
-                    publisher: "Prentice Hall"
-                    isbn: 9780132350884
-                    keyword: ["clean", "refactoring"]
-                    description: "A handbook of agile software craftsmanship."
-                    created_at: "2024-01-15T07:00:00Z"
-                    url_img: "https://example.com/clean-code.jpg"
-                    library:
-                      id: 1
-                      name: "FPT Library"
-                      location: "Building A, Floor 2"
-                    book_subjects:
-                      - subject:
-                          code: "PRF192"
-                          name: "Programming Fundamentals"
-                          category: "SE"
-        '500':
-          description: Internal server error
+                  ok: { type: boolean }
+                  data: { type: array, items: { $ref: '#/components/schemas/Book' } }
+
+    post:
+      summary: Create a new book
+      tags: [Books]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                author: { type: string }
+                publisher: { type: string }
+                isbn: { type: integer }
+                keyword: { type: array, items: { type: string } }
+                description: { type: string }
+                url_img: { type: string }
+                library_id: { type: integer, default: 2 }
+                subjects:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      code: { type: string }
+                      name: { type: string }
+                      category: { type: string }
+      responses:
+        '201':
+          description: Book created
+        '400':
+          description: Invalid input
+
+  /books/{id}:
+    put:
+      summary: Update a book
+      tags: [Books]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                author: { type: string }
+                subjects:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      code: { type: string }
+                      name: { type: string }
+      responses:
+        '200':
+          description: Book updated
+
+    delete:
+      summary: Delete a book
+      tags: [Books]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Book deleted
+
+components:
+  schemas:
+    Book:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        author: { type: string }
+        publisher: { type: string }
+        isbn: { type: integer }
+        keyword: { type: array, items: { type: string } }
+        description: { type: string }
+        created_at: { type: string, format: date-time }
+        url_img: { type: string }
+        library:
+          type: object
+          properties:
+            id: { type: integer }
+            name: { type: string }
+        book_subjects:
+          type: array
+          items:
+            type: object
+            properties:
+              subject:
+                type: object
+                properties:
+                  code: { type: string }
+                  name: { type: string }

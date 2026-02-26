@@ -1,0 +1,44 @@
+tags:
+  - name: Subjects
+    description: Subject and Category management endpoints
+
+paths:
+  /subjects:
+    get:
+      summary: Get all subjects
+      tags: [Subjects]
+      responses:
+        '200':
+          description: List of subjects
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        code: { type: string }
+                        name: { type: string }
+                        category: { type: string }
+                        created_at: { type: string, format: date-time }
+
+  /subjects/categories:
+    get:
+      summary: Get all unique categories
+      tags: [Subjects]
+      responses:
+        '200':
+          description: List of category names
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  data:
+                    type: array
+                    items: { type: string }

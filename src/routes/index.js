@@ -1,6 +1,7 @@
 import express from 'express';
 import authRoutes from './auth.route.js';
 import booksRoutes from './books.route.js';
+import subjectsRoutes from './subjects.route.js';
 
 const router = express.Router();
 
@@ -11,5 +12,6 @@ router.get('/', (req, res) => {
 
 router.use('/', authRoutes);
 router.use('/', booksRoutes);
+router.use('/', subjectsRoutes);
 
 export default router;

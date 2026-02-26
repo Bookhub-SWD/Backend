@@ -1,13 +1,11 @@
 import express from 'express';
-import { getBooks } from '../controllers/books.controller.js';
+import { getBooks, createBook, updateBook, deleteBook } from '../controllers/books.controller.js';
 
 const router = express.Router();
 
-/**
- * GET /api/books?subject=xxx
- * Query books by subject (partial match on subject code or name).
- * If no subject query param, return all books.
- */
 router.get('/books', getBooks);
+router.post('/books', createBook);
+router.put('/books/:id', updateBook);
+router.delete('/books/:id', deleteBook);
 
 export default router;

@@ -13,15 +13,7 @@ export const getBooks = async (req, res) => {
     let query = supabase
       .from('books')
       .select(`
-        id,
-        title,
-        author,
-        publisher,
-        isbn,
-        keyword,
-        description,
-        created_at,
-        url_img,
+        *,
         library:library_id (
           id,
           name,
@@ -36,54 +28,152 @@ export const getBooks = async (req, res) => {
         )
       `);
 
-    // If subject provided, filter books that have at least one matching subject
     if (subject && subject.trim() !== '') {
-      // Get matching subject codes first (partial ilike match)
       const { data: matchedSubjects, error: subjectError } = await supabase
         .from('subjects')
         .select('code')
         .or(`code.ilike.%${subject}%,name.ilike.%${subject}%`);
 
-      if (subjectError) {
-        return res.status(500).json({ ok: false, message: subjectError.message });
-      }
-
-      if (!matchedSubjects || matchedSubjects.length === 0) {
-        return res.status(200).json({ ok: true, data: [] });
-      }
+      if (subjectError) return res.status(500).json({ ok: false, message: subjectError.message });
+      if (!matchedSubjects || matchedSubjects.length === 0) return res.status(200).json({ ok: true, data: [] });
 
       const codes = matchedSubjects.map((s) => s.code);
-
-      // Get book_ids that have those subject codes
       const { data: bookSubjects, error: bsError } = await supabase
         .from('book_subjects')
         .select('book_id')
         .in('subject_code', codes);
 
-      if (bsError) {
-        return res.status(500).json({ ok: false, message: bsError.message });
-      }
-
-      if (!bookSubjects || bookSubjects.length === 0) {
-        return res.status(200).json({ ok: true, data: [] });
-      }
+      if (bsError) return res.status(500).json({ ok: false, message: bsError.message });
+      if (!bookSubjects || bookSubjects.length === 0) return res.status(200).json({ ok: true, data: [] });
 
       const bookIds = [...new Set(bookSubjects.map((b) => b.book_id))];
       query = query.in('id', bookIds);
     }
 
     const { data: books, error } = await query.order('created_at', { ascending: false });
+    if (error) return res.status(500).json({ ok: false, message: error.message });
 
-    if (error) {
-      return res.status(500).json({ ok: false, message: error.message });
-    }
-
-    return res.status(200).json({
-      ok: true,
-      data: books,
-    });
+    return res.status(200).json({ ok: true, data: books });
   } catch (err) {
     console.error('getBooks error:', err);
+    return res.status(500).json({ ok: false, message: 'Internal server error' });
+  }
+};
+
+/**
+ * POST /api/books
+ * Body: { title, author, publisher, isbn, keyword, description, url_img, library_id, subjects: [{code, name, category}] }
+ */
+export const createBook = async (req, res) => {
+  try {
+    const { subjects, ...bookData } = req.body;
+    
+    // Default library_id to 2
+    if (!bookData.library_id) bookData.library_id = 2;
+
+    // 1. Insert Book
+    const { data: book, error: bookError } = await supabase
+      .from('books')
+      .insert(bookData)
+      .select()
+      .single();
+
+    if (bookError) return res.status(400).json({ ok: false, message: bookError.message });
+
+    // 2. Handle Subjects
+    if (subjects && Array.isArray(subjects) && subjects.length > 0) {
+      // Upsert subjects (create if not exist)
+      const { error: subjectUpsertError } = await supabase
+        .from('subjects')
+        .upsert(subjects.map(s => ({ 
+          code: s.code, 
+          name: s.name || null, 
+          category: s.category || null 
+        })), { onConflict: 'code' });
+
+      if (subjectUpsertError) return res.status(400).json({ ok: false, message: 'Subject upsert failed: ' + subjectUpsertError.message });
+
+      // Link book to subjects
+      const links = subjects.map(s => ({
+        book_id: book.id,
+        subject_code: s.code
+      }));
+
+      const { error: linkError } = await supabase.from('book_subjects').insert(links);
+      if (linkError) return res.status(400).json({ ok: false, message: 'Linking subjects failed: ' + linkError.message });
+    }
+
+    return res.status(201).json({ ok: true, message: 'Book created successfully', data: book });
+  } catch (err) {
+    console.error('createBook error:', err);
+    return res.status(500).json({ ok: false, message: 'Internal server error' });
+  }
+};
+
+/**
+ * PUT /api/books/:id
+ */
+export const updateBook = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { subjects, ...bookData } = req.body;
+
+    // 1. Update Book
+    const { data: book, error: bookError } = await supabase
+      .from('books')
+      .update(bookData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (bookError) return res.status(400).json({ ok: false, message: bookError.message });
+
+    // 2. Update Subjects if provided
+    if (subjects && Array.isArray(subjects)) {
+      // Clear old links
+      await supabase.from('book_subjects').delete().eq('book_id', id);
+
+      if (subjects.length > 0) {
+        // Upsert new subjects
+        await supabase.from('subjects').upsert(subjects.map(s => ({ 
+          code: s.code, 
+          name: s.name || null, 
+          category: s.category || null 
+        })), { onConflict: 'code' });
+
+        // Link new subjects
+        const links = subjects.map(s => ({
+          book_id: id,
+          subject_code: s.code
+        }));
+        await supabase.from('book_subjects').insert(links);
+      }
+    }
+
+    return res.status(200).json({ ok: true, message: 'Book updated successfully', data: book });
+  } catch (err) {
+    console.error('updateBook error:', err);
+    return res.status(500).json({ ok: false, message: 'Internal server error' });
+  }
+};
+
+/**
+ * DELETE /api/books/:id
+ */
+export const deleteBook = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // book_subjects should be deleted via FK cascade if configured, 
+    // but we can manually delete them to be safe.
+    await supabase.from('book_subjects').delete().eq('book_id', id);
+
+    const { error } = await supabase.from('books').delete().eq('id', id);
+    if (error) return res.status(400).json({ ok: false, message: error.message });
+
+    return res.status(200).json({ ok: true, message: 'Book deleted successfully' });
+  } catch (err) {
+    console.error('deleteBook error:', err);
     return res.status(500).json({ ok: false, message: 'Internal server error' });
   }
 };
