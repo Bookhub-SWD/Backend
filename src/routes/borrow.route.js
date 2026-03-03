@@ -1,5 +1,5 @@
 import express from 'express';
-import { requestBorrow, approveBorrow, returnBook, getMyBorrows, getAllBorrows } from '../controllers/borrow.controller.js';
+import { requestBorrow, approveBorrow, cancelBorrow, returnBook, getMyBorrows, getAllBorrows } from '../controllers/borrow.controller.js';
 import { authenticate, isAdmin } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
@@ -10,7 +10,8 @@ router.get('/borrow/me', authenticate, getMyBorrows);
 
 // Admin/Staff routes
 router.get('/borrow/all', authenticate, isAdmin, getAllBorrows);
-router.post('/borrow/approve', authenticate, approveBorrow);
+router.post('/borrow/approve', authenticate, isAdmin, approveBorrow);
+router.post('/borrow/cancel', authenticate, isAdmin, cancelBorrow);
 router.post('/borrow/return', authenticate, isAdmin, returnBook);
 
 export default router;

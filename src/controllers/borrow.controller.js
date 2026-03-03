@@ -150,6 +150,54 @@ export const approveBorrow = async (req, res) => {
 };
 
 /**
+ * POST /api/borrow/cancel
+ * Librarian/Staff cancels/rejects the request.
+ * Body: { request_code, note }
+ */
+export const cancelBorrow = async (req, res) => {
+  try {
+    const { request_code, note } = req.body;
+
+    if (!request_code) return res.status(400).json({ ok: false, message: 'request_code is required' });
+
+    // 1. Find the requested record
+    const { data: record, error: recordError } = await supabase
+      .from('borrow_records')
+      .select('id, copy_id, status')
+      .eq('request_code', request_code)
+      .eq('status', 'requested')
+      .single();
+
+    if (recordError || !record) return res.status(404).json({ ok: false, message: 'Matching request not found or not in "requested" status' });
+
+    // 2. Update record to "cancelled" and set the note
+    const { data: updatedRecord, error: updateError } = await supabase
+      .from('borrow_records')
+      .update({
+        status: 'cancelled',
+        note: note || 'Rejected by staff'
+      })
+      .eq('id', record.id)
+      .select()
+      .single();
+
+    if (updateError) return res.status(500).json({ ok: false, message: updateError.message });
+
+    // 3. Make the copy available again
+    await supabase.from('book_copies').update({ status: 'available' }).eq('id', record.copy_id);
+
+    return res.status(200).json({
+      ok: true,
+      message: 'Borrow request cancelled/rejected successfully',
+      data: updatedRecord
+    });
+  } catch (err) {
+    console.error('cancelBorrow error:', err);
+    return res.status(500).json({ ok: false, message: 'Internal server error' });
+  }
+};
+
+/**
  * POST /api/borrow/return
  * Librarian/Staff scans physical book barcode to return.
  * Body: { barcode }

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase.js';
+import { notifyEvent } from '../lib/email.js';
 
 /**
  * GET /api/events
@@ -136,7 +137,10 @@ export const createEvent = async (req, res) => {
 
     if (error) return res.status(400).json({ ok: false, message: error.message });
 
-    return res.status(201).json({ ok: true, message: 'Event created successfully', data });
+    // Send email notification and include result in response
+    const emailResult = await notifyEvent('create', data, req.user.full_name || req.user.email);
+
+    return res.status(201).json({ ok: true, message: 'Event created successfully', data, email_status: emailResult });
   } catch (err) {
     console.error('createEvent error:', err);
     return res.status(500).json({ ok: false, message: 'Internal server error' });
@@ -179,7 +183,10 @@ export const updateEvent = async (req, res) => {
 
     if (error) return res.status(400).json({ ok: false, message: error.message });
 
-    return res.status(200).json({ ok: true, message: 'Event updated successfully', data });
+    // Send email notification and include result in response
+    const emailResult = await notifyEvent('update', data, req.user.full_name || req.user.email);
+
+    return res.status(200).json({ ok: true, message: 'Event updated successfully', data, email_status: emailResult });
   } catch (err) {
     console.error('updateEvent error:', err);
     return res.status(500).json({ ok: false, message: 'Internal server error' });
