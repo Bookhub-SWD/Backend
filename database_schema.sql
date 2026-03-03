@@ -163,6 +163,7 @@ CREATE TABLE public.reviews (
   CONSTRAINT reviews_book_id_fkey FOREIGN KEY (book_id) REFERENCES public.books(id)
 );
 
+<<<<<<< Updated upstream
 CREATE TABLE public.events (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   title text NOT NULL,
@@ -192,6 +193,24 @@ CREATE TABLE public.event_registrations (
   CONSTRAINT event_registrations_unique UNIQUE (event_id, user_id)
 );
 
+=======
+CREATE TABLE public.fines (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  borrow_record_id bigint NOT NULL,
+  user_id uuid NOT NULL DEFAULT auth.uid(),
+  amount decimal(10, 2) NOT NULL DEFAULT 0,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid')),
+  paid_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT fines_pkey PRIMARY KEY (id),
+  CONSTRAINT fines_borrow_record_id_fkey FOREIGN KEY (borrow_record_id) REFERENCES public.borrow_records(id) ON DELETE CASCADE,
+  CONSTRAINT fines_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_fines_user_id ON public.fines(user_id);
+CREATE INDEX idx_fines_status ON public.fines(status);
+
+>>>>>>> Stashed changes
 -- ==========================================
 -- RPC FUNCTIONS (Stored Procedures)
 -- ==========================================
