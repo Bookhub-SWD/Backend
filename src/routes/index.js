@@ -7,6 +7,7 @@ import borrowRoutes from './borrow.route.js';
 import copiesRoutes from './copies.route.js';
 import postsRoutes from './posts.route.js';
 import commentsRoutes from './comments.route.js';
+import paymentsRoutes from './payments.route.js';
 
 const router = express.Router();
 
@@ -23,5 +24,6 @@ router.use('/', borrowRoutes);
 router.use('/', copiesRoutes);
 router.use('/', postsRoutes);
 router.use('/', commentsRoutes);
+router.use('/', paymentsRoutes);
 
 export default router;
