@@ -163,6 +163,35 @@ CREATE TABLE public.reviews (
   CONSTRAINT reviews_book_id_fkey FOREIGN KEY (book_id) REFERENCES public.books(id)
 );
 
+CREATE TABLE public.events (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  title text NOT NULL,
+  description text,
+  location text,
+  banner_url text,
+  max_participants bigint,
+  start_time timestamp with time zone NOT NULL,
+  end_time timestamp with time zone NOT NULL,
+  status text NOT NULL DEFAULT 'upcoming'::text, -- upcoming, ongoing, completed, cancelled
+  created_by uuid NOT NULL DEFAULT auth.uid(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT events_pkey PRIMARY KEY (id),
+  CONSTRAINT events_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
+
+CREATE TABLE public.event_registrations (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  event_id bigint NOT NULL,
+  user_id uuid NOT NULL DEFAULT auth.uid(),
+  status text NOT NULL DEFAULT 'registered'::text, -- registered, attended, cancelled
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT event_registrations_pkey PRIMARY KEY (id),
+  CONSTRAINT event_registrations_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE,
+  CONSTRAINT event_registrations_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT event_registrations_unique UNIQUE (event_id, user_id)
+);
+
 -- ==========================================
 -- RPC FUNCTIONS (Stored Procedures)
 -- ==========================================
