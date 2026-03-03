@@ -1,5 +1,5 @@
 import express from 'express';
-import { getPosts, createPost, toggleLike, deletePost } from '../controllers/posts.controller.js';
+import { getPosts, createPost, updatePost, toggleLike, deletePost } from '../controllers/posts.controller.js';
 import { getCommentsByPost, createComment } from '../controllers/comments.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 
@@ -10,6 +10,7 @@ router.get('/posts', getPosts);
 
 // Protected routes
 router.post('/posts', authenticate, createPost);
+router.put('/posts/:id', authenticate, updatePost);
 router.post('/posts/:id/like', authenticate, toggleLike);
 router.delete('/posts/:id', authenticate, deletePost);
 

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase.js';
+import { notifyNewPost } from '../lib/email.js';
 
 /**
  * GET /api/posts
@@ -51,6 +52,7 @@ export const createPost = async (req, res) => {
   try {
     const userId = req.user.id;
     const { book_id, content, image_url } = req.body;
+    const userRole = req.user.roles?.name?.toLowerCase();
 
     if (!content) {
       return res.status(400).json({ ok: false, message: 'Content is required' });
@@ -64,9 +66,55 @@ export const createPost = async (req, res) => {
 
     if (error) return res.status(400).json({ ok: false, message: error.message });
 
+    // Send email notification if author is Admin or Librarian (non-blocking)
+    if (userRole === 'admin' || userRole === 'librarian') {
+      notifyNewPost('create', data, req.user.full_name || req.user.email);
+    }
+
     return res.status(201).json({ ok: true, message: 'Post created successfully', data });
   } catch (err) {
     console.error('createPost error:', err);
+    return res.status(500).json({ ok: false, message: 'Internal server error' });
+  }
+};
+
+/**
+ * PUT /api/posts/:id
+ */
+export const updatePost = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+    const { content, image_url } = req.body;
+    const userRole = req.user.roles?.name?.toLowerCase();
+
+    if (!content) {
+      return res.status(400).json({ ok: false, message: 'Content is required' });
+    }
+
+    const query = supabase
+      .from('posts')
+      .update({ content, image_url, updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    // Only admin/librarian can update others' posts
+    if (userRole !== 'admin' && userRole !== 'librarian') {
+      query.eq('user_id', userId);
+    }
+
+    const { data, error } = await query.select().single();
+
+    if (error) return res.status(400).json({ ok: false, message: error.message });
+    if (!data) return res.status(404).json({ ok: false, message: 'Post not found or unauthorized' });
+
+    // Send email notification if author is Admin or Librarian (non-blocking)
+    if (userRole === 'admin' || userRole === 'librarian') {
+      notifyNewPost('update', data, req.user.full_name || req.user.email);
+    }
+
+    return res.status(200).json({ ok: true, message: 'Post updated successfully', data });
+  } catch (err) {
+    console.error('updatePost error:', err);
     return res.status(500).json({ ok: false, message: 'Internal server error' });
   }
 };
