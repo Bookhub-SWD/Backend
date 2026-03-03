@@ -32,11 +32,11 @@ export const getBooks = async (req, res) => {
 
     // 2. Filter by Subjects (if code or category provided)
     if (
-      (subject_code && subject_code.trim() !== '') || 
+      (subject_code && subject_code.trim() !== '') ||
       (category && category.trim() !== '')
     ) {
       let subjectQuery = supabase.from('subjects').select('code');
-      
+
       if (subject_code && subject_code.trim() !== '') {
         subjectQuery = subjectQuery.ilike('code', `%${subject_code.trim()}%`);
       }
@@ -75,7 +75,7 @@ export const getBooks = async (req, res) => {
       const copies = book.book_copies || [];
       const total_copies = copies.length;
       const available_copies = copies.filter(c => c.status === 'available').length;
-      
+
       const { book_copies, ...bookInfo } = book;
       return {
         ...bookInfo,
@@ -84,8 +84,8 @@ export const getBooks = async (req, res) => {
       };
     });
 
-    return res.status(200).json({ 
-      ok: true, 
+    return res.status(200).json({
+      ok: true,
       data: booksWithCounts,
       pagination: {
         page,
@@ -107,7 +107,7 @@ export const getBooks = async (req, res) => {
 export const createBook = async (req, res) => {
   try {
     const { subjects, ...bookData } = req.body;
-    
+
     // Default library_id to 2
     if (!bookData.library_id) bookData.library_id = 2;
 
@@ -125,10 +125,10 @@ export const createBook = async (req, res) => {
       // Upsert subjects (create if not exist)
       const { error: subjectUpsertError } = await supabase
         .from('subjects')
-        .upsert(subjects.map(s => ({ 
-          code: s.code, 
-          name: s.name || null, 
-          category: s.category || null 
+        .upsert(subjects.map(s => ({
+          code: s.code,
+          name: s.name || null,
+          category: s.category || null
         })), { onConflict: 'code' });
 
       if (subjectUpsertError) return res.status(400).json({ ok: false, message: 'Subject upsert failed: ' + subjectUpsertError.message });
@@ -175,10 +175,10 @@ export const updateBook = async (req, res) => {
 
       if (subjects.length > 0) {
         // Upsert new subjects
-        await supabase.from('subjects').upsert(subjects.map(s => ({ 
-          code: s.code, 
-          name: s.name || null, 
-          category: s.category || null 
+        await supabase.from('subjects').upsert(subjects.map(s => ({
+          code: s.code,
+          name: s.name || null,
+          category: s.category || null
         })), { onConflict: 'code' });
 
         // Link new subjects

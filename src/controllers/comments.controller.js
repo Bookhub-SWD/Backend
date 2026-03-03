@@ -12,7 +12,7 @@ export const getCommentsByPost = async (req, res) => {
       .from('comments')
       .select(`
         *,
-        user:user_id (id, full_name, email, avatar_url)
+        user:user_id (id, full_name, email, avatar_url, roles(name))
       `)
       .eq('post_id', postId)
       .order('created_at', { ascending: true });
@@ -56,11 +56,11 @@ export const createComment = async (req, res) => {
 
     const { data, error } = await supabase
       .from('comments')
-      .insert([{ 
-        post_id: postId, 
-        user_id: userId, 
-        content, 
-        parent_id 
+      .insert([{
+        post_id: postId,
+        user_id: userId,
+        content,
+        parent_id
       }])
       .select()
       .single();

@@ -13,7 +13,7 @@ export const getPosts = async (req, res) => {
       .from('posts')
       .select(`
         *,
-        user:user_id (id, full_name, email, avatar_url),
+        user:user_id (id, full_name, email, avatar_url, roles(name)),
         book:book_id (id, title, author, url_img),
         likes:post_likes (user_id),
         comments:comments (id)
@@ -52,8 +52,8 @@ export const createPost = async (req, res) => {
     const userId = req.user.id;
     const { book_id, content, image_url } = req.body;
 
-    if (!book_id || !content) {
-      return res.status(400).json({ ok: false, message: 'book_id and content are required' });
+    if (!content) {
+      return res.status(400).json({ ok: false, message: 'Content is required' });
     }
 
     const { data, error } = await supabase

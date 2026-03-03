@@ -10,7 +10,7 @@ router.get('/borrow/me', authenticate, getMyBorrows);
 
 // Admin/Staff routes
 router.get('/borrow/all', authenticate, isAdmin, getAllBorrows);
-router.post('/borrow/approve', authenticate, isAdmin, approveBorrow);
+router.post('/borrow/approve', authenticate, approveBorrow);
 router.post('/borrow/return', authenticate, isAdmin, returnBook);
 
 export default router;
