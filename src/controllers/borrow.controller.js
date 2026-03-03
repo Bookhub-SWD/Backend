@@ -52,8 +52,8 @@ export const requestBorrow = async (req, res) => {
 
       if (resError) return res.status(500).json({ ok: false, message: resError.message });
 
-      return res.status(200).json({ 
-        ok: true, 
+      return res.status(200).json({
+        ok: true,
         message: 'No available copies. You have been added to the waiting list.',
         data: { reservation_id: reservation.id, status: 'waiting' }
       });
@@ -64,7 +64,7 @@ export const requestBorrow = async (req, res) => {
 
     // Start "transaction" (Sequentially)
     await supabase.from('book_copies').update({ status: 'reserved' }).eq('id', availableCopy.id);
-    
+
     const { data: record, error: recordError } = await supabase
       .from('borrow_records')
       .insert([{
@@ -82,10 +82,10 @@ export const requestBorrow = async (req, res) => {
       return res.status(500).json({ ok: false, message: recordError.message });
     }
 
-    return res.status(201).json({ 
-      ok: true, 
-      message: 'Borrow request created successfully', 
-      data: { 
+    return res.status(201).json({
+      ok: true,
+      message: 'Borrow request created successfully',
+      data: {
         request_code: requestCode,
         copy_id: availableCopy.id,
         status: 'requested'
@@ -105,7 +105,7 @@ export const requestBorrow = async (req, res) => {
 export const approveBorrow = async (req, res) => {
   try {
     const { request_code, days_to_borrow = 14 } = req.body;
-    
+
     if (!request_code) return res.status(400).json({ ok: false, message: 'request_code is required' });
 
     // 1. Find the requested record
@@ -124,7 +124,7 @@ export const approveBorrow = async (req, res) => {
 
     // 2. Update record and copy status
     await supabase.from('book_copies').update({ status: 'borrowed' }).eq('id', record.copy_id);
-    
+
     const { data: updatedRecord, error: updateError } = await supabase
       .from('borrow_records')
       .update({
@@ -138,10 +138,10 @@ export const approveBorrow = async (req, res) => {
 
     if (updateError) return res.status(500).json({ ok: false, message: updateError.message });
 
-    return res.status(200).json({ 
-      ok: true, 
-      message: 'Borrow request approved', 
-      data: updatedRecord 
+    return res.status(200).json({
+      ok: true,
+      message: 'Borrow request approved',
+      data: updatedRecord
     });
   } catch (err) {
     console.error('approveBorrow error:', err);
@@ -227,13 +227,37 @@ export const returnBook = async (req, res) => {
 
     if (recordError || !record) return res.status(404).json({ ok: false, message: 'Active borrow record not found for this copy' });
 
-    // 3. Update record to returned
+    // 3. Calculate fines
+    const dueDate = new Date(record.due_date);
+    const returnDate = new Date();
+    const isOverdue = returnDate > dueDate;
+    let fineAmount = 0;
+
+    if (isOverdue) {
+      const diffTime = Math.abs(returnDate - dueDate);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      fineAmount = diffDays * 5000; // 5000 VND per day
+
+      // Create fine record
+      const { error: fineError } = await supabase
+        .from('fines')
+        .insert([{
+          borrow_record_id: record.id,
+          user_id: record.user_id,
+          amount: fineAmount,
+          status: 'pending'
+        }]);
+
+      if (fineError) console.error('Error creating fine:', fineError);
+    }
+
+    // 4. Update record to returned
     await supabase
       .from('borrow_records')
-      .update({ status: 'returned', return_date: new Date().toISOString() })
+      .update({ status: 'returned', return_date: returnDate.toISOString() })
       .eq('id', record.id);
 
-    // 4. Queue logic: Check if anyone is waiting for this book
+    // 5. Queue logic: Check if anyone is waiting for this book
     const { data: nextReservation } = await supabase
       .from('reservations')
       .select('id, user_id')
@@ -246,25 +270,28 @@ export const returnBook = async (req, res) => {
     if (nextReservation) {
       // Reserve for the next person
       await supabase.from('book_copies').update({ status: 'reserved' }).eq('id', copy.id);
-      
+
       // Notify user (Update reservation)
       await supabase
         .from('reservations')
         .update({ status: 'notified', notified_at: new Date().toISOString() })
         .eq('id', nextReservation.id);
 
-      // Auto-create a borrow record for them too? Usually they need to "claim" it.
-      // For now, let's just mark the reservation as notified and copy as reserved.
-      return res.status(200).json({ 
-        ok: true, 
-        message: 'Book returned. Copy reserved for next user in queue.',
-        next_reservation: nextReservation.user_id 
+      return res.status(200).json({
+        ok: true,
+        message: isOverdue ? `Book returned late. Fine: ${fineAmount} VND.` : 'Book returned successfully.',
+        fine: fineAmount,
+        next_reservation: nextReservation.user_id
       });
     }
 
-    // 5. If no one waiting, make available
+    // 6. If no one waiting, make available
     await supabase.from('book_copies').update({ status: 'available' }).eq('id', copy.id);
-    return res.status(200).json({ ok: true, message: 'Book returned successfully' });
+    return res.status(200).json({
+      ok: true,
+      message: isOverdue ? `Book returned late. Fine: ${fineAmount} VND.` : 'Book returned successfully.',
+      fine: fineAmount
+    });
   } catch (err) {
     console.error('returnBook error:', err);
     return res.status(500).json({ ok: false, message: 'Internal server error' });

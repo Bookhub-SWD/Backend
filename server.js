@@ -25,6 +25,13 @@ app.listen(PORT, () => {
   console.log(`  ${chalk.red('DELETE')} ${chalk.white(`${BASE_URL}/api/books/:id`)}`);
   console.log(`  ${chalk.green('GET')}    ${chalk.white(`${BASE_URL}/api/subjects`)}`);
   console.log(`  ${chalk.green('GET')}    ${chalk.white(`${BASE_URL}/api/subjects/categories`)}`);
+  console.log(`  ${chalk.green('GET')}    ${chalk.white(`${BASE_URL}/api/events`)}  ${chalk.dim('?status=&search=')}`);
+  console.log(`  ${chalk.green('GET')}    ${chalk.white(`${BASE_URL}/api/events/:id`)}`);
+  console.log(`  ${chalk.yellow('POST')}   ${chalk.white(`${BASE_URL}/api/events`)}`);
+  console.log(`  ${chalk.blue('PUT')}    ${chalk.white(`${BASE_URL}/api/events/:id`)}`);
+  console.log(`  ${chalk.red('DELETE')} ${chalk.white(`${BASE_URL}/api/events/:id`)}`);
+  console.log(`  ${chalk.yellow('POST')}   ${chalk.white(`${BASE_URL}/api/events/:id/register`)}`);
+  console.log(`  ${chalk.red('DELETE')} ${chalk.white(`${BASE_URL}/api/events/:id/register`)}`);
   console.log('');
   console.log(`  ${chalk.bold('📖 API Docs:')} ${chalk.cyan.underline(`${BASE_URL}/api-docs`)}`);
   console.log(chalk.dim('─────────────────────────────────────────'));
