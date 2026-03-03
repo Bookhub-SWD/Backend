@@ -69,6 +69,28 @@ paths:
         '404':
           description: Copy or active borrow record not found
 
+  /borrow/cancel:
+    post:
+      summary: Librarian cancels/rejects a borrow request (Staff only)
+      tags: [Borrowing]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [request_code]
+              properties:
+                request_code: { type: string }
+                note: { type: string, description: "Reason for cancellation/rejection" }
+      responses:
+        '200':
+          description: Request cancelled successfully
+        '404':
+          description: Request not found or not in 'requested' status
+
   /borrow/me:
     get:
       summary: Get current user's borrow history and active requests
@@ -108,7 +130,7 @@ components:
         * `borrowed`: Active borrow.
         * `returned`: Book has been returned successfully.
         * `overdue`: Past the due date and not returned.
-        * `cancelled`: Request was cancelled (by user or timed out).
+        * `cancelled`: Request was cancelled (by user or staff/librarian). Check `note` for reason.
         
         **reservations.status**
         * `waiting`: In queue for an unavailable book.

@@ -110,12 +110,19 @@ export const deletePost = async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
+    const userRole = req.user.roles?.name?.toLowerCase();
 
-    const { error } = await supabase
+    const query = supabase
       .from('posts')
       .delete()
-      .eq('id', id)
-      .eq('user_id', userId); // Ensure owner
+      .eq('id', id);
+
+    // If not Admin/Librarian, ensure user is owner
+    if (userRole !== 'admin' && userRole !== 'librarian') {
+      query.eq('user_id', userId);
+    }
+
+    const { error } = await query;
 
     if (error) return res.status(400).json({ ok: false, message: error.message });
 
