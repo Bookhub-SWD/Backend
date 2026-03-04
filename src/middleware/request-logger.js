@@ -40,15 +40,10 @@ export const requestLogger = (req, res, next) => {
         const contentLength = res.getHeader('content-length');
         const size = contentLength ? chalk.dim(`${contentLength}B`) : chalk.dim('-');
 
-        // Query params
-        const query = Object.keys(req.query || {}).length > 0
-            ? chalk.dim(` ?${new URLSearchParams(req.query).toString()}`)
-            : '';
-
         // Log line
         const timestamp = chalk.dim(new Date().toLocaleTimeString('vi-VN'));
         console.log(
-            `${timestamp}  ${colorMethod}  ${chalk.white(req.originalUrl)}${query}  ${colorStatus}  ${colorDuration}  ${size}`
+            `${timestamp}  ${colorMethod}  ${chalk.white(req.originalUrl)}  ${colorStatus}  ${colorDuration}  ${size}`
         );
 
         originalEnd.apply(res, args);

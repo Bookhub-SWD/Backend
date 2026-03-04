@@ -9,6 +9,7 @@ import postsRoutes from './posts.route.js';
 import commentsRoutes from './comments.route.js';
 import paymentsRoutes from './payments.route.js';
 import eventsRoutes from './events.route.js';
+import usersRoutes from './users.route.js';
 
 const router = express.Router();
 
@@ -27,5 +28,6 @@ router.use('/', postsRoutes);
 router.use('/', commentsRoutes);
 router.use('/', paymentsRoutes);
 router.use('/', eventsRoutes);
+router.use('/', usersRoutes);
 
 export default router;
