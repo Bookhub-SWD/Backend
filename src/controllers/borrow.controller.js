@@ -220,7 +220,7 @@ export const returnBook = async (req, res) => {
     // 2. Find active borrow record
     const { data: record, error: recordError } = await supabase
       .from('borrow_records')
-      .select('id')
+      .select('id, user_id, due_date')
       .eq('copy_id', copy.id)
       .eq('status', 'borrowed')
       .single();
