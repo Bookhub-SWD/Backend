@@ -335,3 +335,92 @@ export const getBookDetail = async (req, res) => {
     return res.status(500).json({ ok: false, message: 'Internal server error' });
   }
 };
+
+/**
+ * GET /api/books/isbn/:isbn
+ * Lookup book by ISBN. Try DB first, fallback to Google Books.
+ */
+export const getBookByIsbn = async (req, res) => {
+  try {
+    const { isbn } = req.params;
+    if (!isbn) return res.status(400).json({ ok: false, message: 'ISBN is required' });
+
+    // 1. Try DB first
+    const { data: book, error: bookError } = await supabase
+      .from('books')
+      .select(`
+        *,
+        library:library_id (id, name, location),
+        book_subjects (
+          subject:subject_code (code, name, category)
+        ),
+        book_copies (*)
+      `)
+      .eq('isbn', isbn)
+      .maybeSingle();
+
+    if (book && !bookError) {
+      // Record already exists in DB, fetch reviews too for completeness
+      const { data: reviews } = await supabase
+        .from('reviews')
+        .select(`id, content, score, created_at, user:user_id (id, full_name)`)
+        .eq('book_id', book.id);
+
+      let avgScore = 0;
+      if (reviews && reviews.length > 0) {
+        avgScore = Number((reviews.reduce((sum, r) => sum + r.score, 0) / reviews.length).toFixed(1));
+      }
+
+      const copies = book.book_copies || [];
+      const total_copies = copies.length;
+      const available_copies = copies.filter(c => c.status === 'available').length;
+
+      return res.status(200).json({
+        ok: true,
+        is_external: false,
+        data: {
+          ...book,
+          reviews: reviews || [],
+          average_score: avgScore,
+          total_reviews: reviews?.length || 0,
+          total_copies,
+          available_copies
+        }
+      });
+    }
+
+    // 2. Fallback to Open Library
+    console.log(`ISBN ${isbn} not found in DB, querying Open Library...`);
+    const bibkey = `ISBN:${isbn}`;
+    const olRes = await fetch(`https://openlibrary.org/api/books?bibkeys=${bibkey}&format=json&jscmd=data`);
+    const olData = await olRes.json();
+
+    if (olData[bibkey]) {
+      const info = olData[bibkey];
+      const externalBook = {
+        title: info.title,
+        author: info.authors ? info.authors.map(a => a.name).join(', ') : 'Unknown',
+        publisher: info.publishers ? info.publishers.map(p => p.name).join(', ') : 'N/A',
+        isbn: isbn,
+        description: info.notes || info.excerpts?.[0]?.text || 'Thông tin mô tả đang được cập nhật.',
+        url_img: info.cover ? (info.cover.large || info.cover.medium || info.cover.small) : null,
+        page_count: info.number_of_pages,
+        category: info.subjects ? (typeof info.subjects[0] === 'object' ? info.subjects[0].name : info.subjects[0]) : null,
+        published_date: info.publish_date,
+        language: info.language,
+        infoLink: info.url
+      };
+
+      return res.status(200).json({
+        ok: true,
+        is_external: true,
+        data: externalBook
+      });
+    }
+
+    return res.status(404).json({ ok: false, message: 'Book not found for this ISBN' });
+  } catch (err) {
+    console.error('getBookByIsbn error:', err);
+    return res.status(500).json({ ok: false, message: 'Internal server error' });
+  }
+};

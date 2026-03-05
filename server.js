@@ -1,8 +1,7 @@
 import dotenv from 'dotenv';
+dotenv.config();
 import chalk from 'chalk';
 import app from './src/app.js';
-
-dotenv.config();
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = `http://localhost:${PORT}`;
