@@ -10,11 +10,8 @@ import commentsRoutes from './comments.route.js';
 import paymentsRoutes from './payments.route.js';
 import eventsRoutes from './events.route.js';
 import usersRoutes from './users.route.js';
-<<<<<<< HEAD
 import ocrRoutes from './ocr.route.js';
-=======
 import statsRoutes from './stats.route.js';
->>>>>>> 53a43ff0e9450c69c72ee6ad9343248ca824861f
 
 const router = express.Router();
 
@@ -34,10 +31,7 @@ router.use('/', commentsRoutes);
 router.use('/', paymentsRoutes);
 router.use('/', eventsRoutes);
 router.use('/', usersRoutes);
-<<<<<<< HEAD
 router.use('/ocr', ocrRoutes);
-=======
 router.use('/', statsRoutes);
->>>>>>> 53a43ff0e9450c69c72ee6ad9343248ca824861f
 
 export default router;
