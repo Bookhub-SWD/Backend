@@ -5,10 +5,8 @@ import { authenticate } from '../middleware/auth.middleware.js';
 const router = express.Router();
 
 // All favorite routes require authentication
-router.use(authenticate);
-
-router.get('/favorites', getFavorites);
-router.post('/favorites', addFavorite);
-router.delete('/favorites/:bookId', removeFavorite);
+router.get('/favorites', authenticate, getFavorites);
+router.post('/favorites', authenticate, addFavorite);
+router.delete('/favorites/:bookId', authenticate, removeFavorite);
 
 export default router;
