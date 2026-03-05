@@ -45,7 +45,7 @@ export const googleLogin = async (req, res) => {
           email: user.email,
           identity_code: user.identity_code,
           address: user.address,
-          role: user.roles,
+          roles: user.roles,  // "roles" matches hasRole() check in frontend auth.ts
         },
       },
     });
