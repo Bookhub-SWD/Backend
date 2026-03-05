@@ -6,7 +6,7 @@ import app from './src/app.js';
 const PORT = process.env.PORT || 3000;
 const BASE_URL = `http://localhost:${PORT}`;
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log('');
   console.log(chalk.bold.green('🚀 Server is running!'));
   console.log(chalk.dim('─────────────────────────────────────────'));

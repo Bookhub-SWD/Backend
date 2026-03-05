@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase.js';
+import { supabase, supabaseAnon } from '../lib/supabase.js';
 
 /**
  * Middleware xác thực token cho các route yêu cầu đăng nhập.
@@ -16,7 +16,7 @@ export const authenticate = async (req, res, next) => {
     const token = authHeader.split(' ')[1];
 
     // Verify token với Supabase
-    const { data: authData, error: authError } = await supabase.auth.getUser(token);
+    const { data: authData, error: authError } = await supabaseAnon.auth.getUser(token);
 
     if (authError || !authData?.user) {
       return res.status(401).json({ ok: false, message: 'Invalid or expired token' });

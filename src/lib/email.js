@@ -87,6 +87,7 @@ export const notifyNewPost = async (action, post, authorName) => {
  * @param {string} authorName
  */
 export const notifyEvent = async (action, event, authorName) => {
+  const LIBRARY_NAME = 'Thư viện trường đại học HCM';
   try {
     const emails = await getAllUserEmails();
     if (emails.length === 0) return { sent: false, invited_recipients: 0, error: 'No users found' };
@@ -108,7 +109,7 @@ export const notifyEvent = async (action, event, authorName) => {
         </div>
         <div style="padding: 24px 30px;">
           <p style="color: #444; font-size: 15px; margin-top: 0;">
-            ${isCreate ? '🎉 Có <strong>sự kiện mới</strong> vừa được tạo' : '📝 Một sự kiện vừa được <strong>cập nhật</strong>'} bởi <strong>${authorName}</strong>:
+            ${isCreate ? '🎉 Có <strong>sự kiện mới</strong> vừa được tạo' : '📝 Một sự kiện vừa được <strong>cập nhật</strong>'} bởi <strong>${LIBRARY_NAME}</strong>:
           </p>
           <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px 20px; background: #f9f9ff;">
             <h2 style="margin: 0 0 12px 0; color: #4f46e5; font-size: 18px;">${event.title}</h2>
