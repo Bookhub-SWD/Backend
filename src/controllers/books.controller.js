@@ -424,3 +424,80 @@ export const getBookByIsbn = async (req, res) => {
     return res.status(500).json({ ok: false, message: 'Internal server error' });
   }
 };
+/**
+ * GET /api/books/subject/search?q=xxx
+ * Search books by subject name or code.
+ */
+export const searchBooksBySubject = async (req, res) => {
+  try {
+    const { q } = req.query;
+
+    if (!q || q.trim() === '') {
+      return res.status(400).json({ ok: false, message: 'Query parameter q is required' });
+    }
+
+    const searchTerm = q.trim();
+
+    // 1. Search subjects by name or code
+    const { data: matchedSubjects, error: subjectError } = await supabase
+      .from('subjects')
+      .select('code')
+      .or(`name.ilike.%${searchTerm}%,code.ilike.%${searchTerm}%`);
+
+    if (subjectError) return res.status(500).json({ ok: false, message: subjectError.message });
+
+    if (!matchedSubjects || matchedSubjects.length === 0) {
+      return res.status(200).json({ ok: true, data: [] });
+    }
+
+    const subjectCodes = matchedSubjects.map(s => s.code);
+
+    // 2. Get book IDs for these subjects
+    const { data: bookSubjects, error: linkError } = await supabase
+      .from('book_subjects')
+      .select('book_id')
+      .in('subject_code', subjectCodes);
+
+    if (linkError) return res.status(500).json({ ok: false, message: linkError.message });
+
+    if (!bookSubjects || bookSubjects.length === 0) {
+      return res.status(200).json({ ok: true, data: [] });
+    }
+
+    const bookIds = [...new Set(bookSubjects.map(bs => bs.book_id))];
+
+    // 3. Fetch full book details
+    const { data: books, error: fetchError } = await supabase
+      .from('books')
+      .select(`
+        *,
+        library:library_id (id, name, location),
+        book_subjects (
+          subject:subject_code (code, name, category)
+        ),
+        book_copies(status)
+      `)
+      .in('id', bookIds);
+
+    if (fetchError) return res.status(500).json({ ok: false, message: fetchError.message });
+
+    // Process copy counts
+    const booksWithCounts = books.map(book => {
+      const copies = book.book_copies || [];
+      const total_copies = copies.length;
+      const available_copies = copies.filter(c => c.status === 'available').length;
+
+      const { book_copies, ...bookInfo } = book;
+      return {
+        ...bookInfo,
+        total_copies,
+        available_copies
+      };
+    });
+
+    return res.status(200).json({ ok: true, data: booksWithCounts });
+  } catch (err) {
+    console.error('searchBooksBySubject error:', err);
+    return res.status(500).json({ ok: false, message: 'Internal server error' });
+  }
+};
