@@ -208,14 +208,43 @@ export const returnBook = async (req, res) => {
 
     if (!barcode) return res.status(400).json({ ok: false, message: 'barcode is required' });
 
-    // 1. Find the copy
-    const { data: copy, error: copyError } = await supabase
+    // 1. Find the copy (either by unique barcode or by book ISBN)
+    let copy;
+    const { data: copyByBarcode, error: copyError } = await supabase
       .from('book_copies')
-      .select('id, book_id')
+      .select('id, book_id, status')
       .eq('barcode', barcode)
-      .single();
+      .maybeSingle();
 
-    if (copyError || !copy) return res.status(404).json({ ok: false, message: 'Book copy not found' });
+    if (copyByBarcode) {
+      copy = copyByBarcode;
+    } else {
+      // 1.b. If not found by barcode, try searching by ISBN
+      const { data: bookByIsbn } = await supabase
+        .from('books')
+        .select('id')
+        .eq('isbn', barcode)
+        .maybeSingle();
+
+      if (bookByIsbn) {
+        // Find any copy of this book that is currently 'borrowed'
+        const { data: borrowedCopy } = await supabase
+          .from('book_copies')
+          .select('id, book_id, status')
+          .eq('book_id', bookByIsbn.id)
+          .eq('status', 'borrowed')
+          .limit(1)
+          .maybeSingle();
+
+        if (borrowedCopy) {
+          copy = borrowedCopy;
+        } else {
+          return res.status(404).json({ ok: false, message: 'No borrowed copies of this book was found for this ISBN' });
+        }
+      } else {
+        return res.status(404).json({ ok: false, message: 'Book copy not found (checked both barcode and ISBN)' });
+      }
+    }
 
     // 2. Find active borrow record
     const { data: record, error: recordError } = await supabase

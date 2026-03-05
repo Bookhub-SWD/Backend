@@ -10,6 +10,7 @@ import commentsRoutes from './comments.route.js';
 import paymentsRoutes from './payments.route.js';
 import eventsRoutes from './events.route.js';
 import usersRoutes from './users.route.js';
+import ocrRoutes from './ocr.route.js';
 
 const router = express.Router();
 
@@ -29,5 +30,6 @@ router.use('/', commentsRoutes);
 router.use('/', paymentsRoutes);
 router.use('/', eventsRoutes);
 router.use('/', usersRoutes);
+router.use('/ocr', ocrRoutes);
 
 export default router;
