@@ -64,7 +64,7 @@ export const getEventDetail = async (req, res) => {
         *,
         created_by_user:created_by (id, full_name, email),
         registrations:event_registrations (
-          id, status, attended_at, created_at,
+          id, status, registration_code, attended_at, rejected_at, rejection_note, created_at,
           user:user_id (id, full_name, email)
         )
       `)
@@ -181,16 +181,22 @@ export const deleteEvent = async (req, res) => {
  */
 export const checkInEvent = async (req, res) => {
   try {
-    const { registration_code } = req.body;
+    const { registration_code, note } = req.body;
     if (!registration_code) return res.status(400).json({ ok: false, message: 'registration_code is required' });
+
+    const normalizedCode = registration_code.trim().toUpperCase();
+    console.log('[checkInEvent] Searching for code:', normalizedCode);
 
     const { data: reg, error: findError } = await supabase
       .from('event_registrations')
       .select('id, status, event:event_id (id, title, start_time), user:user_id (id, full_name, email)')
-      .eq('registration_code', registration_code)
+      .eq('registration_code', normalizedCode)
       .single();
 
-    if (findError || !reg) return res.status(404).json({ ok: false, message: 'Registration not found' });
+    if (findError || !reg) {
+      console.error('[checkInEvent] Error or not found:', findError);
+      return res.status(404).json({ ok: false, message: `Registration code "${normalizedCode}" not found` });
+    }
 
     if (reg.status !== 'registered') {
       return res.status(400).json({
@@ -228,13 +234,17 @@ export const rejectRegistration = async (req, res) => {
     const { registration_code, note } = req.body;
     if (!registration_code) return res.status(400).json({ ok: false, message: 'registration_code is required' });
 
+    const normalizedCode = registration_code.trim().toUpperCase();
     const { data: reg, error: findError } = await supabase
       .from('event_registrations')
       .select('id, status, event:event_id (id, title), user:user_id (id, full_name, email)')
-      .eq('registration_code', registration_code)
+      .eq('registration_code', normalizedCode)
       .single();
 
-    if (findError || !reg) return res.status(404).json({ ok: false, message: 'Registration not found' });
+    if (findError || !reg) {
+      console.error('[rejectRegistration] Error or not found:', findError);
+      return res.status(404).json({ ok: false, message: `Registration code "${normalizedCode}" not found` });
+    }
 
     if (reg.status !== 'registered') {
       return res.status(400).json({
