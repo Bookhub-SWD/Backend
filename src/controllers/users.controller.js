@@ -134,11 +134,11 @@ export const updateUserStatus = async (req, res) => {
         const { status } = req.body;
 
         // Validate status
-        const validStatuses = ['active', 'inactive', 'suspended'];
+        const validStatuses = ['active', 'inactive'];
         if (!validStatuses.includes(status)) {
             return res.status(400).json({
                 ok: false,
-                message: 'Invalid status. Must be one of: active, inactive, suspended'
+                message: 'Invalid status. Must be one of: active, inactive'
             });
         }
 

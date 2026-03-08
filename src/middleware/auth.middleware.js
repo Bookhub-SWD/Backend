@@ -55,6 +55,56 @@ export const authenticate = async (req, res, next) => {
 };
 
 /**
+ * Middleware kiểm tra session toàn cục (soft validation).
+ * Nếu có token, kiểm tra tính hợp lệ và trạng thái tài khoản.
+ * Nếu không có token, cho phép đi tiếp (guest access).
+ */
+export const validateSession = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    // Nếu không có header Authorization, cho phép đi tiếp (Guest)
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return next();
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    // Verify token với Supabase
+    const { data: authData, error: authError } = await supabaseAnon.auth.getUser(token);
+
+    if (authError || !authData?.user) {
+      return res.status(401).json({ ok: false, message: 'Invalid or expired session' });
+    }
+
+    // Kiểm tra trạng thái user trong database
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id, status, roles(id, name)')
+      .eq('id', authData.user.id)
+      .single();
+
+    if (userError || !user) {
+      return res.status(401).json({ ok: false, message: 'Account not found' });
+    }
+
+    if (user.status !== 'active') {
+      return res.status(403).json({
+        ok: false,
+        message: 'Your account has been deactivated. Please contact administrator.',
+      });
+    }
+
+    // Attach minimal user info
+    req.user = user;
+    next();
+  } catch (err) {
+    console.error('validateSession error:', err);
+    next(); // Trong trường hợp lỗi bất ngờ, cho phép request đi tiếp hoặc handle tùy policy
+  }
+};
+
+/**
  * Middleware kiểm tra quyền admin/staff.
  * Yêu cầu req.user đã được attach từ authenticate middleware.
  */
