@@ -24,6 +24,7 @@ router.get('/payments/overdue/me', authenticate, paymentsController.getMyOverdue
  */
 // Admin/Librarian routes
 router.get('/payments/all', authenticate, isAdmin, paymentsController.getAllFines);
+router.get('/payments/overdue/all', authenticate, isAdmin, paymentsController.getAllOverdueBorrows);
 
 /**
  * @swagger

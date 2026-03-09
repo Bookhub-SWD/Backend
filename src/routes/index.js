@@ -12,6 +12,7 @@ import eventsRoutes from './events.route.js';
 import usersRoutes from './users.route.js';
 import ocrRoutes from './ocr.route.js';
 import statsRoutes from './stats.route.js';
+import aiRoutes from './ai.route.js';
 
 const router = express.Router();
 
@@ -33,5 +34,6 @@ router.use('/', eventsRoutes);
 router.use('/', usersRoutes);
 router.use('/ocr', ocrRoutes);
 router.use('/', statsRoutes);
+router.use('/', aiRoutes);
 
 export default router;

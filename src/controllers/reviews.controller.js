@@ -43,7 +43,7 @@ export const addReview = async (req, res) => {
         content,
         score,
         created_at,
-        user:user_id (id, full_name)
+        user:users!reviews_user_id_fkey (id, full_name)
       `)
             .single();
 

@@ -298,7 +298,7 @@ export const getBookDetail = async (req, res) => {
         content,
         score,
         created_at,
-        user:user_id (id, full_name)
+        user:users!reviews_user_id_fkey (id, full_name)
       `)
       .eq('book_id', id);
 
@@ -363,7 +363,7 @@ export const getBookByIsbn = async (req, res) => {
       // Record already exists in DB, fetch reviews too for completeness
       const { data: reviews } = await supabase
         .from('reviews')
-        .select(`id, content, score, created_at, user:user_id (id, full_name)`)
+        .select(`id, content, score, created_at, user:users!reviews_user_id_fkey (id, full_name)`)
         .eq('book_id', book.id);
 
       let avgScore = 0;

@@ -12,7 +12,7 @@ export const getCommentsByPost = async (req, res) => {
       .from('comments')
       .select(`
         *,
-        user:user_id (id, full_name, email, avatar_url, roles(name))
+        user:users!comments_user_id_fkey (id, full_name, email, avatar_url, roles(name))
       `)
       .eq('post_id', postId)
       .order('created_at', { ascending: true });

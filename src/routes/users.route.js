@@ -49,13 +49,5 @@ router.put('/users/:id', authenticate, isAdmin, usersController.updateUser);
  */
 router.patch('/users/:id/status', authenticate, isAdmin, usersController.updateUserStatus);
 
-/**
- * @swagger
- * /api/users/{id}/reset-password:
- *   post:
- *     summary: Reset user password
- *     tags: [Users]
- */
-router.post('/users/:id/reset-password', authenticate, isAdmin, usersController.resetUserPassword);
 
 export default router;

@@ -27,7 +27,7 @@ export const authenticate = async (req, res, next) => {
     // Kiểm tra user trong public.users theo ID của auth
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('id, full_name, email, identity_code, address, status, roles(id, name)')
+      .select('id, full_name, email, identity_code, address, status, avatar_url, roles(id, name)')
       .eq('id', authUserId)
       .single();
 
@@ -80,7 +80,7 @@ export const validateSession = async (req, res, next) => {
     // Kiểm tra trạng thái user trong database
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('id, status, roles(id, name)')
+      .select('id, status, avatar_url, roles(id, name)')
       .eq('id', authData.user.id)
       .single();
 
@@ -114,7 +114,7 @@ export const isAdmin = (req, res, next) => {
   }
 
   const roleName = req.user.roles.name.toLowerCase();
-  if (roleName !== 'admin' && roleName !== 'librarian' && roleName !== 'staff') {
+  if (roleName !== 'admin' && roleName !== 'librarian') {
     return res.status(403).json({ ok: false, message: 'Forbidden: You do not have permission to access this resource' });
   }
 
