@@ -179,65 +179,6 @@ export const updateUserStatus = async (req, res) => {
     }
 };
 
-/**
- * POST /api/users/:id/reset-password
- * Reset user password (Admin/Librarian only)
- */
-export const resetUserPassword = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { new_password } = req.body;
-
-        if (!new_password) {
-            return res.status(400).json({
-                ok: false,
-                message: 'new_password is required'
-            });
-        }
-
-        if (new_password.length < 6) {
-            return res.status(400).json({
-                ok: false,
-                message: 'Password must be at least 6 characters long'
-            });
-        }
-
-        // Check if user exists in our database
-        const { data: user, error: userError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', id)
-            .single();
-
-        if (userError) {
-            if (userError.code === 'PGRST116') {
-                return res.status(404).json({ ok: false, message: 'User not found' });
-            }
-            return res.status(500).json({ ok: false, message: userError.message });
-        }
-
-        // Update password in Supabase auth
-        const { error: authError } = await supabase.auth.admin.updateUserById(
-            id,
-            { password: new_password }
-        );
-
-        if (authError) {
-            return res.status(500).json({
-                ok: false,
-                message: 'Failed to reset password: ' + authError.message
-            });
-        }
-
-        return res.status(200).json({
-            ok: true,
-            message: 'Password reset successfully'
-        });
-    } catch (err) {
-        console.error('resetUserPassword error:', err);
-        return res.status(500).json({ ok: false, message: 'Internal server error' });
-    }
-};
 
 /**
  * PUT /api/users/:id
@@ -251,7 +192,8 @@ export const updateUser = async (req, res) => {
             identity_code,
             phone,
             address,
-            role_id
+            role_id,
+            avatar_url
         } = req.body;
 
         const updateData = {};
@@ -260,6 +202,7 @@ export const updateUser = async (req, res) => {
         if (phone !== undefined) updateData.phone = phone;
         if (address !== undefined) updateData.address = address;
         if (role_id !== undefined) updateData.role_id = role_id;
+        if (avatar_url !== undefined) updateData.avatar_url = avatar_url;
 
         if (Object.keys(updateData).length === 0) {
             return res.status(400).json({

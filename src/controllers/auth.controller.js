@@ -16,7 +16,7 @@ export const googleLogin = async (req, res) => {
 
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('id, full_name, email, identity_code, address, status, roles(id, name)')
+      .select('id, full_name, email, identity_code, address, status, avatar_url, roles(id, name)')
       .eq('id', authUserId)
       .single();
 
@@ -45,6 +45,7 @@ export const googleLogin = async (req, res) => {
           email: user.email,
           identity_code: user.identity_code,
           address: user.address,
+          avatar_url: user.avatar_url,
           roles: user.roles,  // "roles" matches hasRole() check in frontend auth.ts
         },
       },

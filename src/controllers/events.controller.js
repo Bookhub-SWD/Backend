@@ -24,7 +24,7 @@ export const getEvents = async (req, res) => {
 
     let query = supabase
       .from('events')
-      .select('*, created_by_user:created_by (id, full_name, email), registrations:event_registrations (id)', { count: 'exact' });
+      .select('*, created_by_user:users!events_created_by_fkey (id, full_name, email), registrations:event_registrations (id)', { count: 'exact' });
 
     if (status && status.trim() !== '') query = query.eq('status', status.trim());
     if (search && search.trim() !== '') query = query.ilike('title', `%${search.trim()}%`);
@@ -62,10 +62,10 @@ export const getEventDetail = async (req, res) => {
       .from('events')
       .select(`
         *,
-        created_by_user:created_by (id, full_name, email),
+        created_by_user:users!events_created_by_fkey (id, full_name, email),
         registrations:event_registrations (
           id, status, registration_code, attended_at, rejected_at, rejection_note, created_at,
-          user:user_id (id, full_name, email)
+          user:users!event_registrations_user_id_fkey (id, full_name, email)
         )
       `)
       .eq('id', id)
@@ -189,7 +189,7 @@ export const checkInEvent = async (req, res) => {
 
     const { data: reg, error: findError } = await supabase
       .from('event_registrations')
-      .select('id, status, event:event_id (id, title, start_time), user:user_id (id, full_name, email)')
+      .select('id, status, event:events (id, title, start_time), user:users!event_registrations_user_id_fkey (id, full_name, email)')
       .eq('registration_code', normalizedCode)
       .single();
 
@@ -237,7 +237,7 @@ export const rejectRegistration = async (req, res) => {
     const normalizedCode = registration_code.trim().toUpperCase();
     const { data: reg, error: findError } = await supabase
       .from('event_registrations')
-      .select('id, status, event:event_id (id, title), user:user_id (id, full_name, email)')
+      .select('id, status, event:events (id, title), user:users!event_registrations_user_id_fkey (id, full_name, email)')
       .eq('registration_code', normalizedCode)
       .single();
 

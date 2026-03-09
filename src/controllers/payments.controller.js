@@ -41,7 +41,7 @@ export const getAllFines = async (req, res) => {
             .from('fines')
             .select(`
         *,
-        user:user_id (id, full_name, email),
+        user:users!fines_user_id_fkey1 (id, full_name, email),
         borrow_record:borrow_record_id (
           id,
           copy:copy_id (
@@ -225,7 +225,7 @@ export const getAllOverdueBorrows = async (req, res) => {
                 id,
                 due_date,
                 borrow_date,
-                user:user_id (id, full_name, email),
+                user:users!borrow_records_user_id_fkey (id, full_name, email),
                 copy:copy_id (
                     book:book_id (id, title, author)
                 )

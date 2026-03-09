@@ -366,7 +366,7 @@ export const getAllBorrows = async (req, res) => {
       .from('borrow_records')
       .select(`
         *,
-        user:user_id (id, full_name, email),
+        user:users!borrow_records_user_id_fkey (id, full_name, email),
         copy:copy_id (
           barcode,
           book:book_id (id, title, author)

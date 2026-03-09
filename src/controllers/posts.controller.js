@@ -14,7 +14,7 @@ export const getPosts = async (req, res) => {
       .from('posts')
       .select(`
         *,
-        user:user_id (id, full_name, email, avatar_url, roles(name)),
+        user:users!posts_user_id_fkey (id, full_name, email, avatar_url, roles(name)),
         book:book_id (id, title, author, url_img),
         likes:post_likes (user_id),
         comments:comments (id)
