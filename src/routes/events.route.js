@@ -11,6 +11,7 @@ import {
   cancelRegistration,
   getMyRegistration,
   getMyRegistrations,
+  getRegistrationByCode,
 } from '../controllers/events.controller.js';
 import { authenticate, isAdmin } from '../middleware/auth.middleware.js';
 
@@ -27,6 +28,7 @@ router.get('/events/my-registrations', authenticate, getMyRegistrations);
 // Admin/Librarian — static actions (BEFORE /:id)
 router.post('/events/check-in', authenticate, isAdmin, checkInEvent);
 router.post('/events/reject', authenticate, isAdmin, rejectRegistration);
+router.get('/events/registrations/check-code/:code', authenticate, isAdmin, getRegistrationByCode);
 
 // Admin/Librarian — CRUD with dynamic :id
 router.post('/events', authenticate, isAdmin, createEvent);
