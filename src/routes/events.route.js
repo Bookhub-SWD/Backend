@@ -12,7 +12,7 @@ import {
   getMyRegistration,
   getMyRegistrations,
 } from '../controllers/events.controller.js';
-import { authenticate, isAdmin } from '../middleware/auth.middleware.js';
+import { authenticate, isInternal } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
@@ -25,13 +25,13 @@ router.get('/events', getEvents);
 router.get('/events/my-registrations', authenticate, getMyRegistrations);
 
 // Admin/Librarian — static actions (BEFORE /:id)
-router.post('/events/check-in', authenticate, isAdmin, checkInEvent);
-router.post('/events/reject', authenticate, isAdmin, rejectRegistration);
+router.post('/events/check-in', authenticate, isInternal, checkInEvent);
+router.post('/events/reject', authenticate, isInternal, rejectRegistration);
 
 // Admin/Librarian — CRUD with dynamic :id
-router.post('/events', authenticate, isAdmin, createEvent);
-router.put('/events/:id', authenticate, isAdmin, updateEvent);
-router.delete('/events/:id', authenticate, isAdmin, deleteEvent);
+router.post('/events', authenticate, isInternal, createEvent);
+router.put('/events/:id', authenticate, isInternal, updateEvent);
+router.delete('/events/:id', authenticate, isInternal, deleteEvent);
 
 // Public — dynamic
 router.get('/events/:id', getEventDetail);

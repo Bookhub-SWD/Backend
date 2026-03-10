@@ -1,6 +1,6 @@
 import express from 'express';
 import * as paymentsController from '../controllers/payments.controller.js';
-import { authenticate, isAdmin } from '../middleware/auth.middleware.js';
+import { authenticate, isInternal } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
@@ -23,8 +23,8 @@ router.get('/payments/overdue/me', authenticate, paymentsController.getMyOverdue
  *     tags: [Payments]
  */
 // Admin/Librarian routes
-router.get('/payments/all', authenticate, isAdmin, paymentsController.getAllFines);
-router.get('/payments/overdue/all', authenticate, isAdmin, paymentsController.getAllOverdueBorrows);
+router.get('/payments/all', authenticate, isInternal, paymentsController.getAllFines);
+router.get('/payments/overdue/all', authenticate, isInternal, paymentsController.getAllOverdueBorrows);
 
 /**
  * @swagger
@@ -33,7 +33,7 @@ router.get('/payments/overdue/all', authenticate, isAdmin, paymentsController.ge
  *     summary: Get fine statistics (Admin/Librarian)
  *     tags: [Payments]
  */
-router.get('/payments/stats', authenticate, isAdmin, paymentsController.getFineStats);
+router.get('/payments/stats', authenticate, isInternal, paymentsController.getFineStats);
 
 /**
  * @swagger
