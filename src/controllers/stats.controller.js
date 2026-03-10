@@ -6,35 +6,33 @@ import { supabase } from '../lib/supabase.js';
  */
 export const getDashboardStats = async (req, res) => {
   try {
+    console.log('Fetching dashboard statistics...');
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
 
     // Run all queries in parallel
     const [
       booksRes,
-      usersRes,
-      borrowsTodayRes,
-      revenueRes,
+      borrowedRes,
+      overdueRes,
+      unpaidFinesRes,
       borrowTrendsRes,
       revenueTrendsRes,
       recentBorrowsRes,
       copiesRes,
+      categoriesRes,
     ] = await Promise.all([
       // Total books
       supabase.from('books').select('id', { count: 'exact', head: true }),
 
-      // Active users (status = 'active')
-      supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+      // Currently borrowed books (status = 'borrowed')
+      supabase.from('borrow_records').select('id', { count: 'exact', head: true }).eq('status', 'borrowed'),
 
-      // Borrows created today
-      supabase.from('borrow_records')
-        .select('id', { count: 'exact', head: true })
-        .gte('created_at', todayStart),
+      // Overdue books (status = 'overdue')
+      supabase.from('borrow_records').select('id', { count: 'exact', head: true }).eq('status', 'overdue'),
 
-      // Total revenue from paid fines
-      supabase.from('fines')
-        .select('amount')
-        .eq('status', 'paid'),
+      // Unpaid fines (status = 'pending')
+      supabase.from('fines').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
 
       // Monthly borrow counts (last 6 months)
       supabase.from('borrow_records')
@@ -49,19 +47,24 @@ export const getDashboardStats = async (req, res) => {
 
       // Recent borrow activity (last 10)
       supabase.from('borrow_records')
-        .select('id, status, created_at, user:profiles(full_name, avatar_url), copy:book_copies(book:books(title))')
+        .select('id, status, created_at, user:users!user_id(full_name), copy:book_copies(book:books(title))')
         .order('created_at', { ascending: false })
         .limit(10),
 
       // Book copies status breakdown
       supabase.from('book_copies').select('condition'),
+
+      // Book categories breakdown via book_subjects junction table
+      supabase.from('book_subjects').select('book_id, subject:subjects(category, name)')
     ]);
+
+    console.log('Dashboard queries completed.');
 
     // ── Summary ────────────────────────────────────────────────────────────────
     const totalBooks = booksRes.count ?? 0;
-    const activeUsers = usersRes.count ?? 0;
-    const borrowedToday = borrowsTodayRes.count ?? 0;
-    const revenue = (revenueRes.data ?? []).reduce((sum, f) => sum + (f.amount || 0), 0);
+    const currentlyBorrowed = borrowedRes.count ?? 0;
+    const overdueItems = overdueRes.count ?? 0;
+    const unpaidFines = unpaidFinesRes.count ?? 0;
 
     // ── Monthly borrow trend ────────────────────────────────────────────────────
     const monthLabels = Array.from({ length: 6 }, (_, i) => {
@@ -99,12 +102,52 @@ export const getDashboardStats = async (req, res) => {
       color: conditionColors[label] || '#3F51B5',
     }));
 
+    // ── Book categories breakdown ───────────────────────────────────────────────────
+    const categoryBooksMap = {};
+    (categoriesRes.data ?? []).forEach(item => {
+      // Use subject.category if available, fallback to subject.name, then 'Uncategorized'
+      let catName = 'Uncategorized';
+      if (item.subject) {
+        // If subject is an array (due to some postgrest setups), handle it
+        const subjectObj = Array.isArray(item.subject) ? item.subject[0] : item.subject;
+        // Capitalize for better display and cleanliness
+        const rawName = subjectObj?.category || subjectObj?.name || 'Uncategorized';
+        // Basic normalization to group similar categories
+        catName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+      }
+      
+      // Keep track of unique book_ids per category to avoid inflating the numbers 
+      // if a book has 2 subjects that both fall under the same category label.
+      if (!categoryBooksMap[catName]) {
+        categoryBooksMap[catName] = new Set();
+      }
+      if (item.book_id) {
+        categoryBooksMap[catName].add(item.book_id);
+      }
+    });
+    
+    const categoryMap = {};
+    Object.keys(categoryBooksMap).forEach(cat => {
+      categoryMap[cat] = categoryBooksMap[cat].size;
+    });
+    
+    // Aesthetic color palette for categories
+    const categoryColors = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899', '#14B8A6'];
+    const bookCategories = Object.entries(categoryMap)
+      .map(([name, count], index) => ({
+        name,
+        count,
+        color: categoryColors[index % categoryColors.length]
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6); // Top 6 categories
+
     // ── Recent activity ─────────────────────────────────────────────────────────
     const recentActivity = (recentBorrowsRes.data ?? []).map(r => ({
       id: r.id,
       user: {
         name: r.user?.full_name || 'Unknown',
-        avatar: r.user?.avatar_url || null,
+        avatar: null, // avatar_url is not in our users table
       },
       book: r.copy?.book?.title || 'Unknown book',
       action: r.status === 'returned' ? 'Return' : r.status === 'approved' ? 'Borrow' : 'Reserve',
@@ -117,9 +160,9 @@ export const getDashboardStats = async (req, res) => {
       data: {
         summary: {
           total_books: totalBooks,
-          active_users: activeUsers,
-          borrowed_today: borrowedToday,
-          revenue,
+          currently_borrowed: currentlyBorrowed,
+          overdue_items: overdueItems,
+          unpaid_fines: unpaidFines,
         },
         trends: {
           borrowing: borrowingTrend,
@@ -129,11 +172,69 @@ export const getDashboardStats = async (req, res) => {
         book_status: bookStatus.length ? bookStatus : [
           { label: 'good', value: 1, color: '#22C55E' },
         ],
+        book_categories: bookCategories,
         recent_activity: recentActivity,
       },
     });
   } catch (err) {
     console.error('getDashboardStats error:', err);
+    return res.status(500).json({ ok: false, message: 'Internal server error', error: err.message });
+  }
+};
+
+/**
+ * GET /api/stats/borrowing-trends
+ * Daily borrowing counts for the last 7 days.
+ */
+export const getBorrowingTrends = async (req, res) => {
+  try {
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+    
+    // Fetch borrow records from the last 7 days
+    const { data, error } = await supabase
+      .from('borrow_records')
+      .select('created_at')
+      .gte('created_at', sevenDaysAgo.toISOString())
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+
+    // Initialize map for all 7 days
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const trendMap = [];
+    
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6 + i);
+        const dayLabel = days[d.getDay()];
+        trendMap.push({ 
+            name: dayLabel, 
+            count: 0,
+            fullDate: d.toLocaleDateString('en-US') 
+        });
+    }
+
+    // Aggregate counts
+    (data || []).forEach(r => {
+      const d = new Date(r.created_at);
+      const dateStr = d.toLocaleDateString('en-US');
+      const dayEntry = trendMap.find(item => item.fullDate === dateStr);
+      if (dayEntry) {
+        dayEntry.count++;
+      }
+    });
+
+    // Remove internal helper field
+    const result = trendMap.map(({ name, count }) => ({ name, count }));
+
+    return res.json({
+      ok: true,
+      data: result
+    });
+  } catch (err) {
+    console.error('getBorrowingTrends error:', err);
     return res.status(500).json({ ok: false, message: 'Internal server error' });
   }
 };
+

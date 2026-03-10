@@ -226,6 +226,37 @@ export const checkInEvent = async (req, res) => {
 };
 
 /**
+ * GET /api/events/registrations/check-code/:code
+ * Get registration details by code (for librarian/admin reveal before check-in)
+ */
+export const getRegistrationByCode = async (req, res) => {
+  try {
+    const { code } = req.params;
+    if (!code) return res.status(400).json({ ok: false, message: 'code is required' });
+
+    const normalizedCode = code.trim().toUpperCase();
+
+    const { data: reg, error } = await supabase
+      .from('event_registrations')
+      .select('id, status, registration_code, attended_at, rejected_at, rejection_note, created_at, event:event_id (id, title, start_time), user:user_id (id, full_name, email)')
+      .eq('registration_code', normalizedCode)
+      .single();
+
+    if (error || !reg) {
+      return res.status(404).json({ ok: false, message: `Registration code "${normalizedCode}" not found` });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      data: reg,
+    });
+  } catch (err) {
+    console.error('getRegistrationByCode error:', err);
+    return res.status(500).json({ ok: false, message: 'Internal server error' });
+  }
+};
+
+/**
  * POST /api/events/reject
  * Body: { registration_code, note? }
  */

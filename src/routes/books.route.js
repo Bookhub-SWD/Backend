@@ -11,7 +11,6 @@ router.get('/books/search', searchBooksByKeyword);
 router.get('/books/subject/search', searchBooksBySubject);
 
 router.get('/books/isbn/:isbn', getBookByIsbn);
-
 router.post('/books', authenticate, createBook);
 router.put('/books/:id', authenticate, updateBook);
 router.delete('/books/:id', authenticate, deleteBook);
