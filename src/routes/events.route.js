@@ -13,7 +13,7 @@ import {
   getMyRegistrations,
   getRegistrationByCode,
 } from '../controllers/events.controller.js';
-import { authenticate, isInternal } from '../middleware/auth.middleware.js';
+import { authenticate, isInternal, isAdmin } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
