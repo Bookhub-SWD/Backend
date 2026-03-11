@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticate, isAdmin } from '../middleware/auth.middleware.js';
+import { authenticate, isInternal } from '../middleware/auth.middleware.js';
 import * as usersController from '../controllers/users.controller.js';
 
 const router = express.Router();
@@ -11,7 +11,7 @@ const router = express.Router();
  *     summary: Get all users with pagination and filtering
  *     tags: [Users]
  */
-router.get('/users', authenticate, isAdmin, usersController.getAllUsers);
+router.get('/users', authenticate, isInternal, usersController.getAllUsers);
 
 /**
  * @swagger
@@ -38,7 +38,7 @@ router.get('/users/:id', authenticate, usersController.getUserById);
  *     summary: Update user information
  *     tags: [Users]
  */
-router.put('/users/:id', authenticate, isAdmin, usersController.updateUser);
+router.put('/users/:id', authenticate, isInternal, usersController.updateUser);
 
 /**
  * @swagger
@@ -47,7 +47,7 @@ router.put('/users/:id', authenticate, isAdmin, usersController.updateUser);
  *     summary: Update user status - Close/Open user account
  *     tags: [Users]
  */
-router.patch('/users/:id/status', authenticate, isAdmin, usersController.updateUserStatus);
+router.patch('/users/:id/status', authenticate, isInternal, usersController.updateUserStatus);
 
 
 export default router;

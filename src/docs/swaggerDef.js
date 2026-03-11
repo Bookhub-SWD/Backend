@@ -34,7 +34,7 @@ const options = {
       },
     ],
   },
-  apis: ['./src/docs/*.yaml', './src/docs/paths/*.yaml'],
+  apis: ['./src/docs/*.yaml', './src/docs/paths/*.yaml', './src/routes/*.js'],
 };
 
 const swaggerSpec = swaggerJsdoc(options);

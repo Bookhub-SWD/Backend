@@ -13,7 +13,7 @@ import {
   getMyRegistrations,
   getRegistrationByCode,
 } from '../controllers/events.controller.js';
-import { authenticate, isAdmin } from '../middleware/auth.middleware.js';
+import { authenticate, isInternal } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
@@ -31,9 +31,9 @@ router.post('/events/reject', authenticate, isAdmin, rejectRegistration);
 router.get('/events/registrations/check-code/:code', authenticate, isAdmin, getRegistrationByCode);
 
 // Admin/Librarian — CRUD with dynamic :id
-router.post('/events', authenticate, isAdmin, createEvent);
-router.put('/events/:id', authenticate, isAdmin, updateEvent);
-router.delete('/events/:id', authenticate, isAdmin, deleteEvent);
+router.post('/events', authenticate, isInternal, createEvent);
+router.put('/events/:id', authenticate, isInternal, updateEvent);
+router.delete('/events/:id', authenticate, isInternal, deleteEvent);
 
 // Public — dynamic
 router.get('/events/:id', getEventDetail);

@@ -79,9 +79,9 @@ export const payFine = async (req, res) => {
 
         // Security check: Only owner or Admin/Librarian can pay
         const isOwner = req.user.id === existingFine.user_id;
-        const isAdmin = ['admin', 'librarian', 'staff'].includes(req.user.roles.name.toLowerCase());
+        const isInternal = ['admin', 'librarian', 'staff'].includes(req.user.roles.name.toLowerCase());
 
-        if (!isOwner && !isAdmin) {
+        if (!isOwner && !isInternal) {
             return res.status(403).json({ ok: false, message: 'Unauthorized: You can only pay your own fines' });
         }
 

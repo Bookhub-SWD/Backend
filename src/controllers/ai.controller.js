@@ -32,7 +32,7 @@ export const chatWithAI = async (req, res) => {
         const { data: books, error } = await supabase
             .from("books")
             .select("id,title,author,description")
-            .limit(15);
+            .limit(50);
 
         if (error) {
             console.error("Supabase error:", error);

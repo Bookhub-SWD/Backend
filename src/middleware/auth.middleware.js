@@ -105,10 +105,10 @@ export const validateSession = async (req, res, next) => {
 };
 
 /**
- * Middleware kiểm tra quyền admin/staff.
+ * Middleware kiểm tra quyền admin/librarian.
  * Yêu cầu req.user đã được attach từ authenticate middleware.
  */
-export const isAdmin = (req, res, next) => {
+export const isInternal = (req, res, next) => {
   if (!req.user || !req.user.roles) {
     return res.status(403).json({ ok: false, message: 'Forbidden: No user roles found' });
   }
