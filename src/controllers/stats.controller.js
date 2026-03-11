@@ -184,53 +184,43 @@ export const getDashboardStats = async (req, res) => {
 
 /**
  * GET /api/stats/borrowing-trends
- * Daily borrowing counts for the last 7 days.
+ * Daily borrowing counts aggregated by day of the week across all time.
  */
 export const getBorrowingTrends = async (req, res) => {
   try {
-    const now = new Date();
-    const sevenDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-    sevenDaysAgo.setHours(0, 0, 0, 0);
-    
-    // Fetch borrow records from the last 7 days
+    // Fetch all borrow records
     const { data, error } = await supabase
       .from('borrow_records')
-      .select('created_at')
-      .gte('created_at', sevenDaysAgo.toISOString())
-      .order('created_at', { ascending: true });
+      .select('created_at');
 
     if (error) throw error;
 
-    // Initialize map for all 7 days
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const trendMap = [];
+    // Initialize map for the week (Mon -> Sun)
+    const trendMap = [
+      { name: 'Mon', count: 0 },
+      { name: 'Tue', count: 0 },
+      { name: 'Wed', count: 0 },
+      { name: 'Thu', count: 0 },
+      { name: 'Fri', count: 0 },
+      { name: 'Sat', count: 0 },
+      { name: 'Sun', count: 0 }
+    ];
     
-    for (let i = 0; i < 7; i++) {
-        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6 + i);
-        const dayLabel = days[d.getDay()];
-        trendMap.push({ 
-            name: dayLabel, 
-            count: 0,
-            fullDate: d.toLocaleDateString('en-US') 
-        });
-    }
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
     // Aggregate counts
     (data || []).forEach(r => {
       const d = new Date(r.created_at);
-      const dateStr = d.toLocaleDateString('en-US');
-      const dayEntry = trendMap.find(item => item.fullDate === dateStr);
+      const dayLabel = days[d.getDay()];
+      const dayEntry = trendMap.find(item => item.name === dayLabel);
       if (dayEntry) {
         dayEntry.count++;
       }
     });
 
-    // Remove internal helper field
-    const result = trendMap.map(({ name, count }) => ({ name, count }));
-
     return res.json({
       ok: true,
-      data: result
+      data: trendMap
     });
   } catch (err) {
     console.error('getBorrowingTrends error:', err);
