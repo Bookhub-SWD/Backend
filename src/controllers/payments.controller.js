@@ -253,3 +253,104 @@ export const getAllOverdueBorrows = async (req, res) => {
         return res.status(500).json({ ok: false, message: 'Internal server error' });
     }
 };
+
+/**
+ * POST /api/payments/webhook/sepay
+ * Receive webhook from SePay for bank transfers
+ */
+export const handleSepayWebhook = async (req, res) => {
+    try {
+        const payload = req.body;
+        
+        // Basic auth/validation (optional depending on SePay config, e.g. checking API key in headers)
+        // SePay usually sends { id, gateway, transactionDate, accountNo, code, content, transferType, transferAmount, accumulated, subAccountCode, referenceCode, description }
+        
+        if (!payload || (!payload.content && !payload.description) || !payload.transferAmount) {
+            return res.status(400).json({ success: false, message: 'Invalid payload' });
+        }
+
+        const content = (payload.content || payload.description).toUpperCase();
+        const amount = Number(payload.transferAmount);
+
+        console.log(`[SePay Webhook] Received payment: ${amount} VND. Content: ${content}`);
+
+        // Extract Fine ID from content (Format: BOOKHUB<ID> or BOOKHUB <ID>)
+        const match = content.match(/BOOKHUB\s*(\d+)/);
+        if (!match) {
+            console.log('[SePay Webhook] Ignore: No matching BOOKHUB syntax found');
+            return res.status(200).json({ success: true, message: 'Ignored: No matching syntax' });
+        }
+
+        const fineId = match[1];
+
+        // 1. Find the fine
+        const { data: fine, error: findError } = await supabase
+            .from('fines')
+            .select('id, amount, status')
+            .eq('id', fineId)
+            .single();
+
+        if (findError || !fine) {
+            console.log(`[SePay Webhook] Error: Fine ID ${fineId} not found`);
+            return res.status(404).json({ success: false, message: 'Fine not found' });
+        }
+
+        if (fine.status === 'paid') {
+            console.log(`[SePay Webhook] Ignored: Fine ID ${fineId} is already paid`);
+            return res.status(200).json({ success: true, message: 'Already paid' });
+        }
+
+        // 2. Verify amount
+        if (amount < Number(fine.amount)) {
+            console.log(`[SePay Webhook] Error: Partial payment. Expected ${fine.amount}, got ${amount}`);
+            // Could set status to 'partial' or just log it depending on rules. Leaving it pending for now.
+            return res.status(400).json({ success: false, message: 'Partial payment not accepted automatically' });
+        }
+
+        // 3. Update to paid
+        const { error: updateError } = await supabase
+            .from('fines')
+            .update({
+                status: 'paid',
+                paid_at: new Date().toISOString(),
+            })
+            .eq('id', fine.id);
+
+        if (updateError) {
+            console.error(`[SePay Webhook] Update Error:`, updateError);
+            return res.status(500).json({ success: false, message: 'Database error' });
+        }
+
+        console.log(`[SePay Webhook] Success: Fine ID ${fine.id} marked as paid`);
+        return res.status(200).json({ success: true, message: 'Payment processed successfully' });
+
+    } catch (err) {
+        console.error('handleSepayWebhook error:', err);
+        return res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * GET /api/payments/status/:id
+ * Check the real-time status of a fine (used for polling after showing QR)
+ */
+export const checkFineStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const { data: fine, error } = await supabase
+            .from('fines')
+            .select('status, paid_at')
+            .eq('id', id)
+            .single();
+            
+        if (error || !fine) {
+            return res.status(404).json({ ok: false, message: 'Fine not found' });
+        }
+        
+        return res.status(200).json({ ok: true, data: fine });
+    } catch (err) {
+        console.error('checkFineStatus error:', err);
+        return res.status(500).json({ ok: false, message: 'Internal server error' });
+    }
+};
