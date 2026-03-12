@@ -21,6 +21,8 @@ export const getDashboardStats = async (req, res) => {
       recentBorrowsRes,
       copiesRes,
       categoriesRes,
+      activeUsersRes,
+      borrowedTodayRes,
     ] = await Promise.all([
       // Total books
       supabase.from('books').select('id', { count: 'exact', head: true }),
@@ -55,7 +57,13 @@ export const getDashboardStats = async (req, res) => {
       supabase.from('book_copies').select('condition'),
 
       // Book categories breakdown via book_subjects junction table
-      supabase.from('book_subjects').select('book_id, subject:subjects(category, name)')
+      supabase.from('book_subjects').select('book_id, subject:subjects(category, name)'),
+
+      // Total active users
+      supabase.from('users').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+
+      // Borrowed today
+      supabase.from('borrow_records').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
     ]);
 
     console.log('Dashboard queries completed.');
@@ -65,6 +73,10 @@ export const getDashboardStats = async (req, res) => {
     const currentlyBorrowed = borrowedRes.count ?? 0;
     const overdueItems = overdueRes.count ?? 0;
     const unpaidFines = unpaidFinesRes.count ?? 0;
+    const activeUsers = activeUsersRes.count ?? 0;
+    const borrowedToday = borrowedTodayRes.count ?? 0;
+
+    // ── Monthly borrow trend ────────────────────────────────────────────────────
 
     // ── Monthly borrow trend ────────────────────────────────────────────────────
     const monthLabels = Array.from({ length: 6 }, (_, i) => {
@@ -115,7 +127,7 @@ export const getDashboardStats = async (req, res) => {
         // Basic normalization to group similar categories
         catName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
       }
-      
+
       // Keep track of unique book_ids per category to avoid inflating the numbers 
       // if a book has 2 subjects that both fall under the same category label.
       if (!categoryBooksMap[catName]) {
@@ -125,12 +137,12 @@ export const getDashboardStats = async (req, res) => {
         categoryBooksMap[catName].add(item.book_id);
       }
     });
-    
+
     const categoryMap = {};
     Object.keys(categoryBooksMap).forEach(cat => {
       categoryMap[cat] = categoryBooksMap[cat].size;
     });
-    
+
     // Aesthetic color palette for categories
     const categoryColors = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899', '#14B8A6'];
     const bookCategories = Object.entries(categoryMap)
@@ -155,11 +167,16 @@ export const getDashboardStats = async (req, res) => {
       status: r.status === 'returned' ? 'Completed' : r.status === 'approved' ? 'Active' : 'Pending',
     }));
 
+    const totalRevenue = (revenueTrendsRes.data ?? []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+
     return res.json({
       ok: true,
       data: {
         summary: {
           total_books: totalBooks,
+          active_users: activeUsers,
+          borrowed_today: borrowedToday,
+          revenue: totalRevenue,
           currently_borrowed: currentlyBorrowed,
           overdue_items: overdueItems,
           unpaid_fines: unpaidFines,
@@ -191,7 +208,7 @@ export const getBorrowingTrends = async (req, res) => {
     const now = new Date();
     const sevenDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
     sevenDaysAgo.setHours(0, 0, 0, 0);
-    
+
     // Fetch borrow records from the last 7 days
     const { data, error } = await supabase
       .from('borrow_records')
@@ -204,15 +221,15 @@ export const getBorrowingTrends = async (req, res) => {
     // Initialize map for all 7 days
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const trendMap = [];
-    
+
     for (let i = 0; i < 7; i++) {
-        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6 + i);
-        const dayLabel = days[d.getDay()];
-        trendMap.push({ 
-            name: dayLabel, 
-            count: 0,
-            fullDate: d.toLocaleDateString('en-US') 
-        });
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6 + i);
+      const dayLabel = days[d.getDay()];
+      trendMap.push({
+        name: dayLabel,
+        count: 0,
+        fullDate: d.toLocaleDateString('en-US')
+      });
     }
 
     // Aggregate counts
