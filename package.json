@@ -28,6 +28,7 @@
     "openai": "^6.27.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
+    "xlsx": "^0.18.5",
     "zod": "^3.22.4"
   }
 }

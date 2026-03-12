@@ -1,5 +1,8 @@
 import express from 'express';
-import { getBooks, createBook, updateBook, deleteBook, searchBooksByKeyword, searchBooksBySubject, getBookDetail, getBookByIsbn } from '../controllers/books.controller.js';
+import { getBooks, createBook, updateBook, deleteBook, searchBooksByKeyword, searchBooksBySubject, getBookDetail, getBookByIsbn, importBooksExcel } from '../controllers/books.controller.js';
+import multer from 'multer';
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 import { addReview } from '../controllers/reviews.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
@@ -11,6 +14,7 @@ router.get('/books/search', searchBooksByKeyword);
 router.get('/books/subject/search', searchBooksBySubject);
 
 router.get('/books/isbn/:isbn', getBookByIsbn);
+router.post('/books/import', authenticate, upload.single('file'), importBooksExcel);
 router.post('/books', authenticate, createBook);
 router.put('/books/:id', authenticate, updateBook);
 router.delete('/books/:id', authenticate, deleteBook);

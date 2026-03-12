@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase.js';
+import * as xlsx from 'xlsx';
 
 /**
  * GET /api/books?subject=xxx
@@ -499,5 +500,160 @@ export const searchBooksBySubject = async (req, res) => {
   } catch (err) {
     console.error('searchBooksBySubject error:', err);
     return res.status(500).json({ ok: false, message: 'Internal server error' });
+  }
+};
+
+/**
+ * POST /api/books/import
+ * Import books from an uploaded Excel file.
+ * Expected columns: title, author, publisher, isbn, category, description, language, page_count, quantity
+ */
+export const importBooksExcel = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ ok: false, message: 'No file uploaded. Please provide an Excel file.' });
+    }
+
+    // 1. Parse Excel from buffer
+    const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    
+    // Convert to JSON array
+    // raw: false ensures cells like dates/formatted strings are converted to strings
+    const rows = xlsx.utils.sheet_to_json(sheet, { defval: '' });
+
+    if (!rows || rows.length === 0) {
+      return res.status(400).json({ ok: false, message: 'The uploaded Excel file is empty.' });
+    }
+
+    let successCount = 0;
+    let errorCount = 0;
+    const errors = [];
+
+    // Default library ID
+    const library_id = 2; // Fixed ID 2 as per normal creation
+
+    // 2. Loop through each row and import
+    for (const [index, row] of rows.entries()) {
+      const rowNum = index + 2; // Header is row 1
+      try {
+        // Map Excel columns to variables (normalize keys to lowercase)
+        // Some users might name headers "Title", "TITLE", "Author", etc.
+        const r = {};
+        for (const key in row) {
+          r[key.toLowerCase().trim()] = row[key];
+        }
+
+        const title = r['title'];
+        const author = r['author'];
+        const publisher = r['publisher'];
+        const isbn = r['isbn'];
+        let category = r['category'];
+        const description = r['description'];
+        const language = r['language'] || 'Vietnamese';
+        const page_count = r['page_count'] || r['pages'];
+        const quantity = parseInt(r['quantity'] || r['copies']) || 1;
+
+        if (!title || !isbn) {
+          throw new Error('Title and ISBN are required.');
+        }
+
+        // Clean up ISBN (some excel files parse them as numbers converting them to string, e.g., 9.78E+12)
+        // Ensure it's treated as string.
+        const cleanIsbn = String(isbn).trim();
+
+        // Check if book exists
+        let bookId;
+        const { data: existingBook } = await supabase
+          .from('books')
+          .select('id')
+          .eq('isbn', cleanIsbn)
+          .maybeSingle();
+
+        if (existingBook) {
+          bookId = existingBook.id;
+          // Update book
+          await supabase.from('books').update({
+            title, author, publisher, description, language, 
+            page_count: parseInt(page_count) || null
+          }).eq('id', bookId);
+        } else {
+          // Create new book
+          const newBookObj = {
+            title,
+            author: author || 'Unknown',
+            publisher,
+            isbn: cleanIsbn,
+            description,
+            language,
+            page_count: parseInt(page_count) || null,
+            library_id
+          };
+
+          const { data: newBook, error: bookCreateError } = await supabase
+            .from('books')
+            .insert(newBookObj)
+            .select('id')
+            .single();
+
+          if (bookCreateError) throw new Error(`Book creation failed: ${bookCreateError.message}`);
+          bookId = newBook.id;
+        }
+
+        // Handle Subject (Category)
+        if (category) {
+          category = String(category).trim();
+          // generate a naive Subject code mapping
+          const subjectCode = category.substring(0, 3).toUpperCase() + '-' + Math.floor(Math.random()*100);
+          
+          // Using a simple fixed ID for category if exact match is required, 
+          // or we just upsert it.
+          const { error: subjectUpsertError } = await supabase
+            .from('subjects')
+            .upsert([{ code: category.substring(0, 10).toUpperCase(), name: category, category: category }], { onConflict: 'code', ignoreDuplicates: true });
+          
+          if (!subjectUpsertError) {
+             const code = category.substring(0, 10).toUpperCase();
+             // Check if link exists
+             const { data: linkExist } = await supabase.from('book_subjects').select('*').eq('book_id', bookId).eq('subject_code', code).maybeSingle();
+             if (!linkExist) {
+                await supabase.from('book_subjects').insert([{ book_id: bookId, subject_code: code }]);
+             }
+          }
+        }
+
+        // Generate Copies
+        if (quantity > 0) {
+          const copiesToInsert = [];
+          for (let i = 0; i < quantity; i++) {
+            // naive barcode generation for newly imported copies
+            const randHex = Math.random().toString(16).substr(2, 6).toUpperCase();
+            copiesToInsert.push({
+              book_id: bookId,
+              barcode: `BC-${cleanIsbn.slice(-4)}-${randHex}`,
+              status: 'available',
+              condition: 'New'
+            });
+          }
+          const { error: copyError } = await supabase.from('book_copies').insert(copiesToInsert);
+          if (copyError) throw new Error(`Failed to insert copies: ${copyError.message}`);
+        }
+
+        successCount++;
+      } catch (rowErr) {
+        errorCount++;
+        errors.push(`Row ${rowNum}: ${rowErr.message}`);
+      }
+    }
+
+    return res.status(200).json({
+      ok: true,
+      message: `Import complete. Success: ${successCount}, Failed: ${errorCount}.`,
+      data: { successCount, errorCount, errors }
+    });
+  } catch (err) {
+    console.error('importBooksExcel error:', err);
+    return res.status(500).json({ ok: false, message: 'Internal server error processing Excel file.' });
   }
 };
