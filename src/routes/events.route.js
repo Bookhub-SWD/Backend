@@ -26,9 +26,9 @@ router.get('/events', getEvents);
 router.get('/events/my-registrations', authenticate, getMyRegistrations);
 
 // Admin/Librarian — static actions (BEFORE /:id)
-router.post('/events/check-in', authenticate, isAdmin, checkInEvent);
-router.post('/events/reject', authenticate, isAdmin, rejectRegistration);
-router.get('/events/registrations/check-code/:code', authenticate, isAdmin, getRegistrationByCode);
+router.post('/events/check-in', authenticate, isInternal, checkInEvent);
+router.post('/events/reject', authenticate, isInternal, rejectRegistration);
+router.get('/events/registrations/check-code/:code', authenticate, isInternal, getRegistrationByCode);
 
 // Admin/Librarian — CRUD with dynamic :id
 router.post('/events', authenticate, isInternal, createEvent);
