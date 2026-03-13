@@ -144,3 +144,113 @@ export const notifyEvent = async (action, event, authorName) => {
     return { sent: false, invited_recipients: 0, error: errMsg };
   }
 };
+
+/**
+ * Send a reminder email for a pending fine.
+ */
+export const sendFineReminder = async (userEmail, userName, fineDetails) => {
+  try {
+    const { bookTitle, amount, daysOverdue, dueDate } = fineDetails;
+    
+    const subject = `⚠️ [Bookhub] Nhắc nhở quá hạn trả sách: ${bookTitle}`;
+    
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+        <div style="background-color: #ef4444; padding: 20px 30px;">
+          <h1 style="color: white; margin: 0; font-size: 22px;">📚 Bookhub - Nhắc nhở</h1>
+        </div>
+        <div style="padding: 24px 30px;">
+          <p style="color: #444; font-size: 15px; margin-top: 0;">Xin chào <strong>${userName}</strong>,</p>
+          <p style="color: #444; font-size: 15px;">Chúng tôi ghi nhận bạn đang có một khoản phạt chưa thanh toán cho cuốn sách:</p>
+          <div style="border-left: 4px solid #ef4444; margin: 16px 0; padding: 12px 16px; background: #fff5f5; border-radius: 4px;">
+            <p style="margin: 0; font-weight: bold; font-size: 16px; color: #b91c1c;">${bookTitle}</p>
+            <p style="margin: 4px 0 0 0; color: #444;">Hạn trả: ${new Date(dueDate).toLocaleDateString('vi-VN')}</p>
+            <p style="margin: 4px 0 0 0; color: #444;">Số ngày quá hạn: <span style="color: #ef4444; font-weight: bold;">${daysOverdue} ngày</span></p>
+            <p style="margin: 4px 0 0 0; color: #444;">Số tiền phạt hiện tại: <span style="font-size: 18px; font-weight: bold;">${Number(amount).toLocaleString('vi-VN')} VND</span></p>
+          </div>
+          <p style="color: #444; font-size: 15px;">Vui lòng truy cập ứng dụng Bookhub để thực hiện thanh toán ngay hôm nay để tránh phát sinh thêm phí phạt (5,000 VND/ngày).</p>
+          <p style="margin-top: 20px; color: #888; font-size: 13px;">Đây là email tự động từ hệ thống Bookhub. Vui lòng không reply email này.</p>
+        </div>
+      </div>
+    `;
+
+    const msg = {
+      to: userEmail,
+      from: FROM_EMAIL,
+      subject,
+      html,
+    };
+
+    await sgMail.send(msg);
+    console.log(`[Email] Fine reminder sent to ${userEmail}`);
+    return { success: true };
+  } catch (err) {
+    console.error('[Email] Failed to send fine reminder:', err.message);
+    return { success: false, error: err.message };
+  }
+};
+
+/**
+ * Send a detailed invoice email for a successful fine payment.
+ */
+export const sendFineInvoice = async (userEmail, userName, paymentDetails) => {
+  try {
+    const { fineId, bookTitle, amount, paidAt, returnDate } = paymentDetails;
+    
+    const subject = `✅ [Bookhub] Hóa đơn thanh toán phí phạt #${fineId}`;
+    
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+        <div style="background-color: #10b981; padding: 20px 30px;">
+          <h1 style="color: white; margin: 0; font-size: 22px;">📚 Bookhub - Hóa đơn</h1>
+        </div>
+        <div style="padding: 24px 30px;">
+          <p style="color: #444; font-size: 15px; margin-top: 0;">Xin chào <strong>${userName}</strong>,</p>
+          <p style="color: #444; font-size: 15px;">Bạn đã thanh toán thành công khoản phí phạt cho mượn sách. Dưới đây là biên lai chi tiết:</p>
+          
+          <div style="border: 1px solid #e2e8f0; border-radius: 8px; margin: 20px 0; padding: 20px;">
+            <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 8px 0; color: #64748b;">Mã hóa đơn</td>
+                <td style="padding: 8px 0; text-align: right; font-weight: bold;">#${fineId}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 8px 0; color: #64748b;">Sách đã mượn</td>
+                <td style="padding: 8px 0; text-align: right; font-weight: bold;">${bookTitle}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 8px 0; color: #64748b;">Ngày trả sách</td>
+                <td style="padding: 8px 0; text-align: right;">${new Date(returnDate).toLocaleDateString('vi-VN')}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 8px 0; color: #64748b;">Ngày thanh toán</td>
+                <td style="padding: 8px 0; text-align: right;">${new Date(paidAt).toLocaleDateString('vi-VN')}</td>
+              </tr>
+              <tr>
+                <td style="padding: 12px 0 0 0; color: #1a1a1a; font-weight: bold; font-size: 16px;">Tổng cộng</td>
+                <td style="padding: 12px 0 0 0; text-align: right; color: #10b981; font-weight: bold; font-size: 20px;">${Number(amount).toLocaleString('vi-VN')} VND</td>
+              </tr>
+            </table>
+          </div>
+          
+          <p style="color: #444; font-size: 15px;">Cảm ơn bạn đã sử dụng dịch vụ của thư viện Bookhub!</p>
+          <p style="margin-top: 20px; color: #888; font-size: 13px;">Email này có giá trị như một biên lai điện tử.</p>
+        </div>
+      </div>
+    `;
+
+    const msg = {
+      to: userEmail,
+      from: FROM_EMAIL,
+      subject,
+      html,
+    };
+
+    await sgMail.send(msg);
+    console.log(`[Email] Payment invoice sent to ${userEmail}`);
+    return { success: true };
+  } catch (err) {
+    console.error('[Email] Failed to send payment invoice:', err.message);
+    return { success: false, error: err.message };
+  }
+};

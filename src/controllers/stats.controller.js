@@ -205,33 +205,48 @@ export const getDashboardStats = async (req, res) => {
  */
 export const getBorrowingTrends = async (req, res) => {
   try {
-    // Fetch all borrow records
+    const now = new Date();
+    // Get Monday of current week
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+    const monday = new Date(now.setDate(diff));
+    monday.setHours(0, 0, 0, 0);
+
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+
+    console.log(`Fetching trends from ${monday.toISOString()} to ${sunday.toISOString()}`);
+
+    // Fetch borrow records for this week
     const { data, error } = await supabase
       .from('borrow_records')
-      .select('created_at');
+      .select('created_at')
+      .gte('created_at', monday.toISOString())
+      .lte('created_at', sunday.toISOString());
 
     if (error) throw error;
 
     // Initialize map for the week (Mon -> Sun)
     const trendMap = [
-      { name: 'Mon', count: 0 },
-      { name: 'Tue', count: 0 },
-      { name: 'Wed', count: 0 },
-      { name: 'Thu', count: 0 },
-      { name: 'Fri', count: 0 },
-      { name: 'Sat', count: 0 },
-      { name: 'Sun', count: 0 }
+      { name: 'Thứ 2', count: 0 },
+      { name: 'Thứ 3', count: 0 },
+      { name: 'Thứ 4', count: 0 },
+      { name: 'Thứ 5', count: 0 },
+      { name: 'Thứ 6', count: 0 },
+      { name: 'Thứ 7', count: 0 },
+      { name: 'Chủ nhật', count: 0 }
     ];
 
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dayIndices = [6, 0, 1, 2, 3, 4, 5]; // Sunday=0 -> idx 6, Monday=1 -> idx 0...
 
     // Aggregate counts
     (data || []).forEach(r => {
       const d = new Date(r.created_at);
-      const dayLabel = days[d.getDay()];
-      const dayEntry = trendMap.find(item => item.name === dayLabel);
-      if (dayEntry) {
-        dayEntry.count++;
+      const dayIndex = d.getDay();
+      const trendIdx = dayIndices[dayIndex];
+      if (trendMap[trendIdx]) {
+        trendMap[trendIdx].count++;
       }
     });
 

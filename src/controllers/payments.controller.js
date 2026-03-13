@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase.js';
+import { sendFineReminder, sendFineInvoice } from '../lib/email.js';
 
 /**
  * GET /api/payments/me
@@ -44,6 +45,8 @@ export const getAllFines = async (req, res) => {
         user:users!fines_user_id_fkey1 (id, full_name, email),
         borrow_record:borrow_record_id (
           id,
+          due_date,
+          return_date,
           copy:copy_id (
             book:book_id (id, title, author)
           )
@@ -56,6 +59,51 @@ export const getAllFines = async (req, res) => {
         return res.status(200).json({ ok: true, data: fines });
     } catch (err) {
         console.error('getAllFines error:', err);
+        return res.status(500).json({ ok: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * GET /api/payments/pending
+ * Get all pending fines with urgency calculation (Admin/Librarian).
+ */
+export const getPendingFines = async (req, res) => {
+    try {
+        const { data: fines, error } = await supabase
+            .from('fines')
+            .select(`
+                *,
+                user:users!fines_user_id_fkey1 (id, full_name, email),
+                borrow_record:borrow_record_id (
+                    id,
+                    due_date,
+                    return_date,
+                    copy:copy_id (
+                        book:book_id (id, title, author)
+                    )
+                )
+            `)
+            .eq('status', 'pending')
+            .order('created_at', { ascending: false });
+
+        if (error) return res.status(500).json({ ok: false, message: error.message });
+
+        const now = new Date();
+        const processed = fines.map(f => {
+            const dueDate = new Date(f.borrow_record?.due_date);
+            const diffTime = now.getTime() - dueDate.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            return {
+                ...f,
+                days_overdue: diffDays > 0 ? diffDays : 0,
+                days_left: diffDays < 0 ? Math.abs(diffDays) : 0
+            };
+        }).sort((a, b) => b.days_overdue - a.days_overdue);
+
+        return res.status(200).json({ ok: true, data: processed });
+    } catch (err) {
+        console.error('getPendingFines error:', err);
         return res.status(500).json({ ok: false, message: 'Internal server error' });
     }
 };
@@ -99,6 +147,37 @@ export const payFine = async (req, res) => {
             .single();
 
         if (updateError) return res.status(400).json({ ok: false, message: updateError.message });
+
+        // 3. Send detailed invoice email (async)
+        try {
+            const { data: fullFine } = await supabase
+                .from('fines')
+                .select(`
+                    *,
+                    user:users!fines_user_id_fkey1 (id, full_name, email),
+                    borrow_record:borrow_record_id (
+                        id,
+                        return_date,
+                        copy:copy_id (
+                            book:book_id (id, title)
+                        )
+                    )
+                `)
+                .eq('id', id)
+                .single();
+
+            if (fullFine && fullFine.user?.email) {
+                sendFineInvoice(fullFine.user.email, fullFine.user.full_name, {
+                    fineId: fullFine.id,
+                    bookTitle: fullFine.borrow_record?.copy?.book?.title || 'Sách mượn',
+                    amount: fullFine.amount,
+                    paidAt: fine.paid_at,
+                    returnDate: fullFine.borrow_record?.return_date || new Date().toISOString()
+                });
+            }
+        } catch (emailErr) {
+            console.error('Failed to trigger invoice email:', emailErr);
+        }
 
         return res.status(200).json({ ok: true, message: 'Fine paid successfully', data: fine });
     } catch (err) {
@@ -321,6 +400,37 @@ export const handleSepayWebhook = async (req, res) => {
             return res.status(500).json({ success: false, message: 'Database error' });
         }
 
+        // 4. Send detailed invoice email (async)
+        try {
+            const { data: fullFine } = await supabase
+                .from('fines')
+                .select(`
+                    *,
+                    user:users!fines_user_id_fkey1 (id, full_name, email),
+                    borrow_record:borrow_record_id (
+                        id,
+                        return_date,
+                        copy:copy_id (
+                            book:book_id (id, title)
+                        )
+                    )
+                `)
+                .eq('id', fine.id)
+                .single();
+
+            if (fullFine && fullFine.user?.email) {
+                sendFineInvoice(fullFine.user.email, fullFine.user.full_name, {
+                    fineId: fullFine.id,
+                    bookTitle: fullFine.borrow_record?.copy?.book?.title || 'Sách mượn',
+                    amount: fullFine.amount,
+                    paidAt: new Date().toISOString(),
+                    returnDate: fullFine.borrow_record?.return_date || new Date().toISOString()
+                });
+            }
+        } catch (emailErr) {
+            console.error('[SePay Webhook] Failed to trigger invoice email:', emailErr);
+        }
+
         console.log(`[SePay Webhook] Success: Fine ID ${fine.id} marked as paid`);
         return res.status(200).json({ success: true, message: 'Payment processed successfully' });
 
@@ -351,6 +461,55 @@ export const checkFineStatus = async (req, res) => {
         return res.status(200).json({ ok: true, data: fine });
     } catch (err) {
         console.error('checkFineStatus error:', err);
+        return res.status(500).json({ ok: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * POST /api/payments/:id/notify
+ * Send manual email reminder to user about a fine.
+ */
+export const notifyFineReminder = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const { data: fine, error } = await supabase
+            .from('fines')
+            .select(`
+                *,
+                user:users!fines_user_id_fkey1 (id, full_name, email),
+                borrow_record:borrow_record_id (
+                    id,
+                    due_date,
+                    copy:copy_id (
+                        book:book_id (id, title)
+                    )
+                )
+            `)
+            .eq('id', id)
+            .single();
+
+        if (error || !fine) return res.status(404).json({ ok: false, message: 'Fine not found' });
+        if (fine.status === 'paid') return res.status(400).json({ ok: false, message: 'Fine is already paid' });
+        if (!fine.user?.email) return res.status(400).json({ ok: false, message: 'User has no email registered' });
+
+        const dueDate = new Date(fine.borrow_record?.due_date);
+        const diffDays = Math.ceil((new Date() - dueDate) / (1000 * 60 * 60 * 24));
+
+        const result = await sendFineReminder(fine.user.email, fine.user.full_name, {
+            bookTitle: fine.borrow_record?.copy?.book?.title || 'Sách mượn',
+            amount: fine.amount,
+            daysOverdue: diffDays > 0 ? diffDays : 0,
+            dueDate: fine.borrow_record?.due_date
+        });
+
+        if (!result.success) {
+            return res.status(500).json({ ok: false, message: 'Failed to send email', error: result.error });
+        }
+
+        return res.status(200).json({ ok: true, message: 'Reminder sent successfully' });
+    } catch (err) {
+        console.error('notifyFineReminder error:', err);
         return res.status(500).json({ ok: false, message: 'Internal server error' });
     }
 };

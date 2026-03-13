@@ -48,6 +48,8 @@ router.post('/payments/webhook/sepay', paymentsController.handleSepayWebhook);
 // Check status (polling)
 router.get('/payments/status/:id', authenticate, paymentsController.checkFineStatus);
 
+router.get('/payments/pending', authenticate, isInternal, paymentsController.getPendingFines);
+router.post('/payments/:id/notify', authenticate, isInternal, paymentsController.notifyFineReminder);
 router.post('/payments/:id/pay', authenticate, paymentsController.payFine);
 
 export default router;
