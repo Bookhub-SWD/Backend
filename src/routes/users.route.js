@@ -15,6 +15,15 @@ router.get('/users', authenticate, isInternal, usersController.getAllUsers);
 
 /**
  * @swagger
+ * /api/users:
+ *   post:
+ *     summary: Create a new user
+ *     tags: [Users]
+ */
+router.post('/users', authenticate, isInternal, usersController.createUser);
+
+/**
+ * @swagger
  * /api/users/roles:
  *   get:
  *     summary: Get all available roles

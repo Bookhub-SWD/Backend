@@ -37,7 +37,9 @@ export const getMyFines = async (req, res) => {
  */
 export const getAllFines = async (req, res) => {
     try {
-        const { data: fines, error } = await supabase
+        const { user_id } = req.query;
+
+        let query = supabase
             .from('fines')
             .select(`
         *,
@@ -45,11 +47,16 @@ export const getAllFines = async (req, res) => {
         borrow_record:borrow_record_id (
           id,
           copy:copy_id (
-            book:book_id (id, title, author)
+            book:book_id (id, title, author, url_img)
           )
         )
-      `)
-            .order('created_at', { ascending: false });
+      `);
+
+        if (user_id) {
+            query = query.eq('user_id', user_id);
+        }
+
+        const { data: fines, error } = await query.order('created_at', { ascending: false });
 
         if (error) return res.status(500).json({ ok: false, message: error.message });
 

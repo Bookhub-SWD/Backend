@@ -8,7 +8,7 @@ import * as xlsx from 'xlsx';
  */
 export const getBooks = async (req, res) => {
   try {
-    const { title, subject_code, category } = req.query;
+    const { title, search, subject_code, category } = req.query;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const from = (page - 1) * limit;
@@ -20,15 +20,15 @@ export const getBooks = async (req, res) => {
       .select(`
         *,
         library:library_id (id, name, location),
-        book_subjects (
+        subjects:book_subjects (
           subject:subject_code (code, name, category)
         ),
         book_copies(status)
       `, { count: 'exact' });
 
-    // 1. Filter by Title (if provided)
-    if (title && title.trim() !== '') {
-      query = query.ilike('title', `%${title.trim()}%`);
+    const searchVal = (search || title || '').trim();
+    if (searchVal !== '') {
+      query = query.ilike('title', `%${searchVal}%`);
     }
 
     // 2. Filter by Subjects (if code or category provided)
@@ -107,10 +107,21 @@ export const getBooks = async (req, res) => {
  */
 export const createBook = async (req, res) => {
   try {
-    const { subjects, ...bookData } = req.body;
+    const { 
+      title, author, publisher, isbn, 
+      keyword, description, url_img, library_id,
+      subjects
+    } = req.body;
 
-    // Default library_id to 2
-    if (!bookData.library_id) bookData.library_id = 2;
+    // Normalize ISBN
+    let cleanIsbn = isbn ? String(isbn).trim().replace(/[^0-9X]/gi, '') : null;
+
+    const bookData = {
+      title, author, publisher, 
+      isbn: cleanIsbn,
+      keyword, description, url_img,
+      library_id: library_id || req.user?.library_id || 1
+    };
 
     // 1. Insert Book
     const { data: book, error: bookError } = await supabase
@@ -156,8 +167,20 @@ export const createBook = async (req, res) => {
  */
 export const updateBook = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { subjects, ...bookData } = req.body;
+    const { 
+      title, author, publisher, isbn, 
+      keyword, description, url_img, library_id,
+      subjects
+    } = req.body;
+
+    const bookData = {
+      title, author, publisher, isbn,
+      keyword, description, url_img,
+      library_id
+    };
+
+    // Remove undefined fields to avoid overwriting with null if they weren't sent
+    Object.keys(bookData).forEach(key => bookData[key] === undefined && delete bookData[key]);
 
     // 1. Update Book
     const { data: book, error: bookError } = await supabase
@@ -249,7 +272,7 @@ export const searchBooksByKeyword = async (req, res) => {
       .select(`
         *,
         library:library_id (id, name, location),
-        book_subjects (
+        subjects:book_subjects (
           subject:subject_code (code, name, category)
         )
       `)
@@ -278,7 +301,7 @@ export const getBookDetail = async (req, res) => {
       .select(`
         *,
         library:library_id (id, name, location),
-        book_subjects (
+        subjects:book_subjects (
           subject:subject_code (code, name, category)
         ),
         book_copies (*)
@@ -352,7 +375,7 @@ export const getBookByIsbn = async (req, res) => {
       .select(`
         *,
         library:library_id (id, name, location),
-        book_subjects (
+        subjects:book_subjects (
           subject:subject_code (code, name, category)
         ),
         book_copies (*)
@@ -473,7 +496,7 @@ export const searchBooksBySubject = async (req, res) => {
       .select(`
         *,
         library:library_id (id, name, location),
-        book_subjects (
+        subjects:book_subjects (
           subject:subject_code (code, name, category)
         ),
         book_copies(status)
@@ -518,7 +541,7 @@ export const importBooksExcel = async (req, res) => {
     const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
-    
+
     // Convert to JSON array
     // raw: false ensures cells like dates/formatted strings are converted to strings
     const rows = xlsx.utils.sheet_to_json(sheet, { defval: '' });
@@ -548,46 +571,62 @@ export const importBooksExcel = async (req, res) => {
         const title = r['title'];
         const author = r['author'];
         const publisher = r['publisher'];
-        const isbn = r['isbn'];
+        let isbn = r['isbn'];
         let category = r['category'];
         const description = r['description'];
-        const language = r['language'] || 'Vietnamese';
-        const page_count = r['page_count'] || r['pages'];
+        const url_img = r['url_img'] || r['url image'] || r['image'] || r['image_url'];
+        const keyword_raw = r['keyword'] || r['keywords'] || r['tags'];
+        const keyword = keyword_raw ? String(keyword_raw).split(',').map(k => k.trim()).filter(k => k) : [];
         const quantity = parseInt(r['quantity'] || r['copies']) || 1;
+        const manualBarcodes = r['barcodes'] ? String(r['barcodes']).split(',').map(b => b.trim()).filter(b => b) : [];
 
         if (!title || !isbn) {
           throw new Error('Title and ISBN are required.');
         }
 
-        // Clean up ISBN (some excel files parse them as numbers converting them to string, e.g., 9.78E+12)
-        // Ensure it's treated as string.
-        const cleanIsbn = String(isbn).trim();
+        // Clean up and Normalize ISBN
+        // Excel often converts long numbers to scientific notation (e.g., 9.78E+12)
+        let cleanIsbn = String(isbn).trim();
+        if (cleanIsbn.includes('E+') || cleanIsbn.includes('e+')) {
+          const num = parseFloat(cleanIsbn);
+          if (!isNaN(num)) {
+            cleanIsbn = num.toLocaleString('fullwide', { useGrouping: false });
+          }
+        }
+        // Remove anyway non-alphanumeric characters for general use
+        cleanIsbn = cleanIsbn.replace(/[^0-9X]/gi, '');
+        // For the DB bigint column, we MUST only have numbers
+        const isbnForDb = cleanIsbn.replace(/[^0-9]/g, '');
 
         // Check if book exists
         let bookId;
         const { data: existingBook } = await supabase
           .from('books')
           .select('id')
-          .eq('isbn', cleanIsbn)
+          .eq('isbn', isbnForDb)
           .maybeSingle();
 
         if (existingBook) {
           bookId = existingBook.id;
           // Update book
-          await supabase.from('books').update({
-            title, author, publisher, description, language, 
-            page_count: parseInt(page_count) || null
+          const { error: updateError } = await supabase.from('books').update({
+            title, author, publisher, description, url_img, keyword
           }).eq('id', bookId);
+          
+          if (updateError) {
+            console.error(`[Import] Row ${rowNum} - Book update failed:`, updateError);
+            throw new Error(`Book update failed: ${updateError.message}`);
+          }
         } else {
           // Create new book
           const newBookObj = {
             title,
             author: author || 'Unknown',
             publisher,
-            isbn: cleanIsbn,
+            isbn: isbnForDb,
             description,
-            language,
-            page_count: parseInt(page_count) || null,
+            url_img,
+            keyword,
             library_id
           };
 
@@ -597,47 +636,90 @@ export const importBooksExcel = async (req, res) => {
             .select('id')
             .single();
 
-          if (bookCreateError) throw new Error(`Book creation failed: ${bookCreateError.message}`);
+          if (bookCreateError) {
+            console.error(`[Import] Row ${rowNum} - Book creation failed:`, bookCreateError);
+            throw new Error(`Book creation failed: ${bookCreateError.message}`);
+          }
           bookId = newBook.id;
+          console.log(`[Import] Row ${rowNum} - Created new book ID: ${bookId}`);
         }
 
         // Handle Subject (Category)
         if (category) {
           category = String(category).trim();
-          // generate a naive Subject code mapping
-          const subjectCode = category.substring(0, 3).toUpperCase() + '-' + Math.floor(Math.random()*100);
-          
+          const subjectCode = category.toUpperCase().replace(/\s+/g, '_').substring(0, 10);
+
           // Using a simple fixed ID for category if exact match is required, 
           // or we just upsert it.
           const { error: subjectUpsertError } = await supabase
             .from('subjects')
-            .upsert([{ code: category.substring(0, 10).toUpperCase(), name: category, category: category }], { onConflict: 'code', ignoreDuplicates: true });
-          
+            .upsert([{
+              code: subjectCode,
+              name: category,
+              category: category
+            }], { onConflict: 'code' });
+
           if (!subjectUpsertError) {
-             const code = category.substring(0, 10).toUpperCase();
              // Check if link exists
-             const { data: linkExist } = await supabase.from('book_subjects').select('*').eq('book_id', bookId).eq('subject_code', code).maybeSingle();
-             if (!linkExist) {
-                await supabase.from('book_subjects').insert([{ book_id: bookId, subject_code: code }]);
+             const { data: linkExist, error: linkCheckError } = await supabase
+               .from('book_subjects')
+               .select('*')
+               .eq('book_id', bookId)
+               .eq('subject_code', subjectCode)
+               .maybeSingle();
+ 
+             if (linkCheckError) {
+                console.error(`[Import] Row ${rowNum} - Subject link check failed:`, linkCheckError);
+             } else if (!linkExist) {
+               const { error: linkInsertError } = await supabase.from('book_subjects').insert([{ book_id: bookId, subject_code: subjectCode }]);
+               if (linkInsertError) {
+                 console.error(`[Import] Row ${rowNum} - Subject linking failed:`, linkInsertError);
+               }
              }
-          }
+           } else {
+             console.error(`[Import] Row ${rowNum} - Subject upsert failed:`, subjectUpsertError);
+           }
         }
 
-        // Generate Copies
-        if (quantity > 0) {
-          const copiesToInsert = [];
-          for (let i = 0; i < quantity; i++) {
-            // naive barcode generation for newly imported copies
-            const randHex = Math.random().toString(16).substr(2, 6).toUpperCase();
+        // Generate Copies (Hybrid: Manual or ISBN-prefix)
+        const copiesToInsert = [];
+        if (manualBarcodes.length > 0) {
+          console.log(`[Import] Row ${rowNum} - Registering ${manualBarcodes.length} manual barcodes.`);
+          for (const barcode of manualBarcodes) {
             copiesToInsert.push({
               book_id: bookId,
-              barcode: `BC-${cleanIsbn.slice(-4)}-${randHex}`,
+              barcode: barcode,
               status: 'available',
               condition: 'New'
             });
           }
-          const { error: copyError } = await supabase.from('book_copies').insert(copiesToInsert);
-          if (copyError) throw new Error(`Failed to insert copies: ${copyError.message}`);
+        } else if (quantity > 0) {
+          console.log(`[Import] Row ${rowNum} - Auto-generating ${quantity} barcodes using unique ISBN prefix.`);
+          for (let i = 1; i <= quantity; i++) {
+            // Truly unique barcode: [cleanIsbn]-[seq]-[randomHex]
+            const randHex = Math.random().toString(16).substring(2, 6).toUpperCase();
+            const seq = String(i).padStart(2, '0');
+            copiesToInsert.push({
+              book_id: bookId,
+              barcode: `${cleanIsbn}-${seq}-${randHex}`,
+              status: 'available',
+              condition: 'New'
+            });
+          }
+        } else {
+          console.log(`[Import] Row ${rowNum} - No barcodes or quantity provided, skipping copy creation.`);
+        }
+
+        if (copiesToInsert.length > 0) {
+          const { error: copyError } = await supabase
+            .from('book_copies')
+            .upsert(copiesToInsert, { onConflict: 'barcode', ignoreDuplicates: true });
+
+          if (copyError) {
+            console.error(`[Import] Row ${rowNum} - Copy insertion failed:`, copyError);
+            throw new Error(`Failed to insert copies: ${copyError.message}`);
+          }
+          console.log(`[Import] Row ${rowNum} - Successfully registered copies.`);
         }
 
         successCount++;

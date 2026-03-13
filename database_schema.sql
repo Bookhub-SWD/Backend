@@ -109,7 +109,8 @@ CREATE TABLE public.fines (
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT fines_pkey PRIMARY KEY (id),
   CONSTRAINT fines_borrow_record_id_fkey FOREIGN KEY (borrow_record_id) REFERENCES public.borrow_records(id),
-  CONSTRAINT fines_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+  CONSTRAINT fines_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT fines_user_id_fkey1 FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
 CREATE TABLE public.library (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL UNIQUE,

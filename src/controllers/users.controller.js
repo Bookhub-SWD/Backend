@@ -125,6 +125,124 @@ export const getUserById = async (req, res) => {
 };
 
 /**
+ * POST /api/users
+ * Create a new user (Admin/Librarian only)
+ * This handles creating the user in Supabase Auth first, then in public.users
+ */
+export const createUser = async (req, res) => {
+    try {
+        const {
+            full_name,
+            email,
+            identity_code,
+            phone,
+            address,
+            role_id
+        } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ ok: false, message: 'Email is required' });
+        }
+
+        // Check if admin auth is available
+        if (!supabase.auth.admin) {
+            return res.status(500).json({ 
+                ok: false, 
+                message: 'Supabase Service Role Key is missing. Admin user creation is not possible without it.' 
+            });
+        }
+
+        // 1. Create user in Supabase Auth
+        // We use a random password since they should login via Google or Reset Password later
+        const randomPassword = Math.random().toString(36).slice(-12) + 'A1!';
+        
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+            email,
+            password: randomPassword,
+            email_confirm: true, // Auto-confirm so they can login immediately
+            user_metadata: { full_name }
+        });
+
+        if (authError) {
+            // Handle case where user already exists in Auth
+            if (authError.message.includes('already registered') || authError.status === 422) {
+                // Try to find the existing auth user to get their ID
+                // Note: We might need to list users or check if they exist in public.users already
+                const { data: existingUsers, error: listError } = await supabase.auth.admin.listUsers();
+                if (listError) return res.status(500).json({ ok: false, message: 'User exists in Auth but failed to retrieve details' });
+                
+                const existingAuthUser = existingUsers.users.find(u => u.email === email);
+                if (existingAuthUser) {
+                    // Check if they exist in public.users
+                    const { data: publicUser } = await supabase
+                        .from('users')
+                        .select('id')
+                        .eq('id', existingAuthUser.id)
+                        .maybeSingle();
+                    
+                    if (publicUser) {
+                        return res.status(400).json({ ok: false, message: 'User already exists in the system' });
+                    }
+                    
+                    // If they exist in Auth but not in public.users, proceed with insertion using their Auth ID
+                    return await insertPublicUser(existingAuthUser.id, { full_name, email, identity_code, phone, address, role_id }, res);
+                }
+            }
+            return res.status(400).json({ ok: false, message: `Auth Error: ${authError.message}` });
+        }
+
+        const newAuthUser = authData.user;
+
+        // 2. Insert into public.users
+        return await insertPublicUser(newAuthUser.id, { full_name, email, identity_code, phone, address, role_id }, res);
+
+    } catch (err) {
+        console.error('createUser error:', err);
+        return res.status(500).json({ ok: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * Helper to insert user into public.users table
+ */
+const insertPublicUser = async (userId, data, res) => {
+    const { full_name, email, identity_code, phone, address, role_id } = data;
+    
+    const newUser = {
+        id: userId, // Use the ID from Supabase Auth
+        full_name,
+        email,
+        identity_code,
+        phone,
+        address,
+        role_id: role_id || 3,
+        status: 'active'
+    };
+
+    const { data: insertedUser, error } = await supabase
+        .from('users')
+        .upsert([newUser]) // Use upsert in case a trigger already created a partial record
+        .select(`
+            *,
+            roles(id, name)
+        `)
+        .single();
+
+    if (error) {
+        console.error('insertPublicUser error:', error);
+        return res.status(500).json({ ok: false, message: `Database Error: ${error.message}` });
+    }
+
+    return res.status(insertStatus(res)).json({
+        ok: true,
+        message: 'User created and synchronized successfully',
+        data: insertedUser
+    });
+};
+
+const insertStatus = (res) => res.req.method === 'POST' ? 201 : 200;
+
+/**
  * PATCH /api/users/:id/status
  * Update user status - Close/Open user account (Admin/Librarian only)
  */

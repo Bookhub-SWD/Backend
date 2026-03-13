@@ -362,17 +362,24 @@ export const getMyBorrows = async (req, res) => {
  */
 export const getAllBorrows = async (req, res) => {
   try {
-    const { data: records, error } = await supabase
+    const { user_id } = req.query;
+
+    let query = supabase
       .from('borrow_records')
       .select(`
         *,
-        user:users!borrow_records_user_id_fkey (id, full_name, email),
+        user:users!borrow_records_user_id_fkey (id, full_name, email, identity_code, phone, address),
         copy:copy_id (
           barcode,
-          book:book_id (id, title, author)
+          book:book_id (id, title, author, url_img)
         )
-      `)
-      .order('created_at', { ascending: false });
+      `);
+
+    if (user_id) {
+      query = query.eq('user_id', user_id);
+    }
+
+    const { data: records, error } = await query.order('created_at', { ascending: false });
 
     if (error) return res.status(500).json({ ok: false, message: error.message });
 
