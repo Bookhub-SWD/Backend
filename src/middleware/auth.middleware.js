@@ -113,8 +113,11 @@ export const isInternal = (req, res, next) => {
     return res.status(403).json({ ok: false, message: 'Forbidden: No user roles found' });
   }
 
-  const roleName = req.user.roles.name.toLowerCase();
-  if (roleName !== 'admin' && roleName !== 'librarian') {
+  // Supabase join returns roles as an array or object depending on relationship type
+  const rolesData = req.user.roles;
+  const roleName = (Array.isArray(rolesData) ? rolesData[0]?.name : rolesData?.name)?.toLowerCase();
+
+  if (!roleName || (roleName !== 'admin' && roleName !== 'librarian')) {
     return res.status(403).json({ ok: false, message: 'Forbidden: You do not have permission to access this resource' });
   }
 
@@ -130,8 +133,11 @@ export const isAdmin = (req, res, next) => {
     return res.status(403).json({ ok: false, message: 'Forbidden: No user roles found' });
   }
 
-  const roleName = req.user.roles.name.toLowerCase();
-  if (roleName !== 'admin') {
+  // Supabase join returns roles as an array or object depending on relationship type
+  const rolesData = req.user.roles;
+  const roleName = (Array.isArray(rolesData) ? rolesData[0]?.name : rolesData?.name)?.toLowerCase();
+
+  if (!roleName || roleName !== 'admin') {
     return res.status(403).json({ ok: false, message: 'Forbidden: Admin access required' });
   }
 

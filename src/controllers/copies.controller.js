@@ -8,10 +8,7 @@ export const getCopies = async (req, res) => {
   try {
     const { book_id } = req.query;
     
-    let query = supabase.from('book_copies').select(`
-      *,
-      book:book_id (id, title, author)
-    `);
+    let query = supabase.from('book_copies').select('*');
 
     if (book_id) {
       query = query.eq('book_id', book_id);
@@ -36,10 +33,7 @@ export const getCopyById = async (req, res) => {
     const { id } = req.params;
     const { data: copy, error } = await supabase
       .from('book_copies')
-      .select(`
-        *,
-        book:book_id (id, title, author)
-      `)
+      .select('*')
       .eq('id', id)
       .single();
 
@@ -60,10 +54,38 @@ export const getCopyById = async (req, res) => {
  */
 export const createCopy = async (req, res) => {
   try {
-    const { book_id, barcode, condition = 'good' } = req.body;
+    const { book_id, barcode: providedBarcode, condition = 'New' } = req.body;
 
-    if (!book_id || !barcode) {
-      return res.status(400).json({ ok: false, message: 'book_id and barcode are required' });
+    if (!book_id) {
+      return res.status(400).json({ ok: false, message: 'book_id is required' });
+    }
+
+    let barcode = providedBarcode?.trim();
+
+    // Auto-generate barcode if not provided: {isbn}-{seq}-{4 alphanumeric}
+    if (!barcode) {
+      // 1. Fetch book ISBN
+      const { data: book, error: bookErr } = await supabase
+        .from('books')
+        .select('isbn')
+        .eq('id', book_id)
+        .single();
+
+      if (bookErr || !book) {
+        return res.status(404).json({ ok: false, message: 'Book not found' });
+      }
+
+      const isbnBase = book.isbn ? String(book.isbn) : book_id.substring(0, 8);
+
+      // 2. Count existing copies to determine next sequence number
+      const { count } = await supabase
+        .from('book_copies')
+        .select('id', { count: 'exact', head: true })
+        .eq('book_id', book_id);
+
+      const seq = String((count || 0) + 1).padStart(2, '0');
+      const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+      barcode = `${isbnBase}-${seq}-${rand}`;
     }
 
     const { data, error } = await supabase
@@ -87,7 +109,8 @@ export const createCopy = async (req, res) => {
 export const updateCopy = async (req, res) => {
   try {
     const { id } = req.params;
-    const updateData = req.body;
+    // Strip immutable fields to prevent PostgreSQL errors
+    const { id: _id, book_id, created_at, ...updateData } = req.body;
 
     const { data, error } = await supabase
       .from('book_copies')

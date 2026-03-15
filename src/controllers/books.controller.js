@@ -708,14 +708,14 @@ export const importBooksExcel = async (req, res) => {
             });
           }
         } else if (quantity > 0) {
-          console.log(`[Import] Row ${rowNum} - Auto-generating ${quantity} barcodes using unique ISBN prefix.`);
+          console.log(`[Import] Row ${rowNum} - Auto-generating ${quantity} barcodes (standard: ISBN-SEQ-XXXX).`);
           for (let i = 1; i <= quantity; i++) {
-            // Truly unique barcode: [cleanIsbn]-[seq]-[randomHex]
-            const randHex = Math.random().toString(16).substring(2, 6).toUpperCase();
+            // Standard: {isbn}-{seq 2 digits}-{4 alphanumeric chars}
+            const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
             const seq = String(i).padStart(2, '0');
             copiesToInsert.push({
               book_id: bookId,
-              barcode: `${cleanIsbn}-${seq}-${randHex}`,
+              barcode: `${cleanIsbn}-${seq}-${rand}`,
               status: 'available',
               condition: 'New'
             });
