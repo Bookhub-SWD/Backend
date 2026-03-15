@@ -42,6 +42,14 @@ router.get('/payments/stats', authenticate, isInternal, paymentsController.getFi
  *     summary: Mark a fine as paid
  *     tags: [Payments]
  */
+// Webhook from SePay (No auth needed - must be BEFORE /:id routes to avoid conflict)
+router.post('/payments/webhook/sepay', paymentsController.handleSepayWebhook);
+
+// Check status (polling)
+router.get('/payments/status/:id', authenticate, paymentsController.checkFineStatus);
+
+router.get('/payments/pending', authenticate, isInternal, paymentsController.getPendingFines);
+router.post('/payments/:id/notify', authenticate, isInternal, paymentsController.notifyFineReminder);
 router.post('/payments/:id/pay', authenticate, paymentsController.payFine);
 
 export default router;

@@ -1,0 +1,13 @@
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+dotenv.config();
+
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+
+async function checkFines() {
+  const { data, error } = await supabase.from('fines').select('*').limit(1);
+  console.log('Fines data:', data);
+  if (error) console.error('Error:', error);
+}
+
+checkFines();

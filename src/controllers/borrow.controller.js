@@ -261,6 +261,7 @@ export const returnBook = async (req, res) => {
     const returnDate = new Date();
     const isOverdue = returnDate > dueDate;
     let fineAmount = 0;
+    let fineId = undefined;
 
     if (isOverdue) {
       const diffTime = Math.abs(returnDate - dueDate);
@@ -268,16 +269,22 @@ export const returnBook = async (req, res) => {
       fineAmount = diffDays * 5000; // 5000 VND per day
 
       // Create fine record
-      const { error: fineError } = await supabase
+      const { data: fineRecord, error: fineError } = await supabase
         .from('fines')
         .insert([{
           borrow_record_id: record.id,
           user_id: record.user_id,
           amount: fineAmount,
           status: 'pending'
-        }]);
+        }])
+        .select()
+        .single();
 
-      if (fineError) console.error('Error creating fine:', fineError);
+      if (fineError) {
+        console.error('Error creating fine:', fineError);
+      } else if (fineRecord) {
+        fineId = fineRecord.id;
+      }
     }
 
     // 4. Update record to returned
@@ -310,16 +317,17 @@ export const returnBook = async (req, res) => {
         ok: true,
         message: isOverdue ? `Book returned late. Fine: ${fineAmount} VND.` : 'Book returned successfully.',
         fine: fineAmount,
+        fine_id: isOverdue ? fineId : undefined,
         next_reservation: nextReservation.user_id
       });
     }
 
-    // 6. If no one waiting, make available
     await supabase.from('book_copies').update({ status: 'available' }).eq('id', copy.id);
     return res.status(200).json({
       ok: true,
       message: isOverdue ? `Book returned late. Fine: ${fineAmount} VND.` : 'Book returned successfully.',
-      fine: fineAmount
+      fine: fineAmount,
+      fine_id: isOverdue ? fineId : undefined
     });
   } catch (err) {
     console.error('returnBook error:', err);
