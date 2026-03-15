@@ -33,6 +33,15 @@ router.get('/users/roles', authenticate, usersController.getRoles);
 
 /**
  * @swagger
+ * /api/users/stats:
+ *   get:
+ *     summary: Get user statistics
+ *     tags: [Users]
+ */
+router.get('/users/stats', authenticate, isInternal, usersController.getUserStats);
+
+/**
+ * @swagger
  * /api/users/{id}:
  *   get:
  *     summary: Get user details by ID

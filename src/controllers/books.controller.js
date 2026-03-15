@@ -167,6 +167,7 @@ export const createBook = async (req, res) => {
  */
 export const updateBook = async (req, res) => {
   try {
+    const { id } = req.params;
     const { 
       title, author, publisher, isbn, 
       keyword, description, url_img, library_id,
@@ -228,14 +229,27 @@ export const deleteBook = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // book_subjects should be deleted via FK cascade if configured, 
-    // but we can manually delete them to be safe.
+    // 1. Kiểm tra xem sách có đang được mượn không
+    const { data: copies, error: copyError } = await supabase
+      .from('book_copies')
+      .select('status')
+      .eq('book_id', id)
+      .eq('status', 'borrowed');
+
+    if (copyError) return res.status(400).json({ ok: false, message: copyError.message });
+
+    if (copies && copies.length > 0) {
+      return res.status(400).json({ ok: false, message: 'Không thể xóa sách đang có người mượn' });
+    }
+
+    // Xóa các bảng phụ thuộc
     await supabase.from('book_subjects').delete().eq('book_id', id);
+    await supabase.from('book_copies').delete().eq('book_id', id);
 
     const { error } = await supabase.from('books').delete().eq('id', id);
     if (error) return res.status(400).json({ ok: false, message: error.message });
 
-    return res.status(200).json({ ok: true, message: 'Book deleted successfully' });
+    return res.status(200).json({ ok: true, message: 'Xóa sách thành công' });
   } catch (err) {
     console.error('deleteBook error:', err);
     return res.status(500).json({ ok: false, message: 'Internal server error' });
