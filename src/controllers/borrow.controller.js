@@ -43,19 +43,9 @@ export const requestBorrow = async (req, res) => {
     if (copyError) return res.status(500).json({ ok: false, message: copyError.message });
 
     if (!availableCopy) {
-      // 3. If no copy, add to reservations queue
-      const { data: reservation, error: resError } = await supabase
-        .from('reservations')
-        .insert([{ user_id: userId, book_id }])
-        .select()
-        .single();
-
-      if (resError) return res.status(500).json({ ok: false, message: resError.message });
-
-      return res.status(200).json({
-        ok: true,
-        message: 'No available copies. You have been added to the waiting list.',
-        data: { reservation_id: reservation.id, status: 'waiting' }
+      return res.status(400).json({
+        ok: false,
+        message: 'Hiện không có bản sao nào sẵn sàng để mượn.'
       });
     }
 
@@ -293,35 +283,6 @@ export const returnBook = async (req, res) => {
       .update({ status: 'returned', return_date: returnDate.toISOString() })
       .eq('id', record.id);
 
-    // 5. Queue logic: Check if anyone is waiting for this book
-    const { data: nextReservation } = await supabase
-      .from('reservations')
-      .select('id, user_id')
-      .eq('book_id', copy.book_id)
-      .eq('status', 'waiting')
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (nextReservation) {
-      // Reserve for the next person
-      await supabase.from('book_copies').update({ status: 'reserved' }).eq('id', copy.id);
-
-      // Notify user (Update reservation)
-      await supabase
-        .from('reservations')
-        .update({ status: 'notified', notified_at: new Date().toISOString() })
-        .eq('id', nextReservation.id);
-
-      return res.status(200).json({
-        ok: true,
-        message: isOverdue ? `Book returned late. Fine: ${fineAmount} VND.` : 'Book returned successfully.',
-        fine: fineAmount,
-        fine_id: isOverdue ? fineId : undefined,
-        next_reservation: nextReservation.user_id
-      });
-    }
-
     await supabase.from('book_copies').update({ status: 'available' }).eq('id', copy.id);
     return res.status(200).json({
       ok: true,
@@ -370,13 +331,13 @@ export const getMyBorrows = async (req, res) => {
  */
 export const getAllBorrows = async (req, res) => {
   try {
-    const { user_id } = req.query;
+    const { user_id, role_id } = req.query;
 
     let query = supabase
       .from('borrow_records')
       .select(`
         *,
-        user:users!borrow_records_user_id_fkey (id, full_name, email, identity_code, phone, address),
+        user:users!borrow_records_user_id_fkey (id, full_name, email, identity_code, phone, address, role_id),
         copy:copy_id (
           barcode,
           book:book_id (id, title, author, url_img)
@@ -385,6 +346,10 @@ export const getAllBorrows = async (req, res) => {
 
     if (user_id) {
       query = query.eq('user_id', user_id);
+    }
+
+    if (role_id) {
+      query = query.eq('user.role_id', role_id);
     }
 
     const { data: records, error } = await query.order('created_at', { ascending: false });

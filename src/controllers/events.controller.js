@@ -26,7 +26,20 @@ export const getEvents = async (req, res) => {
       .from('events')
       .select('*, created_by_user:users!events_created_by_fkey (id, full_name, email), registrations:event_registrations (id)', { count: 'exact' });
 
-    if (status && status.trim() !== '') query = query.eq('status', status.trim());
+    const now = new Date().toISOString();
+
+    if (status && status.trim() !== '') {
+        const s = status.trim().toLowerCase();
+        if (s === 'upcoming') {
+            query = query.gt('start_time', now);
+        } else if (s === 'ongoing') {
+            query = query.lte('start_time', now).gte('end_time', now);
+        } else if (s === 'completed') {
+            query = query.lt('end_time', now);
+        } else {
+            query = query.eq('status', s);
+        }
+    }
     if (search && search.trim() !== '') query = query.ilike('title', `%${search.trim()}%`);
 
     const { data: events, error, count } = await query
@@ -64,7 +77,7 @@ export const getEventDetail = async (req, res) => {
         *,
         created_by_user:users!events_created_by_fkey (id, full_name, email),
         registrations:event_registrations (
-          id, status, registration_code, attended_at, rejected_at, rejection_note, created_at,
+          id, status, registration_code, attended_at, created_at,
           user:users!event_registrations_user_id_fkey (id, full_name, email)
         )
       `)
@@ -238,7 +251,7 @@ export const getRegistrationByCode = async (req, res) => {
 
     const { data: reg, error } = await supabase
       .from('event_registrations')
-      .select('id, status, registration_code, attended_at, rejected_at, rejection_note, created_at, event:event_id (id, title, start_time), user:user_id (id, full_name, email)')
+      .select('id, status, registration_code, attended_at, created_at, event:event_id (id, title, start_time), user:user_id (id, full_name, email)')
       .eq('registration_code', normalizedCode)
       .single();
 
@@ -256,53 +269,6 @@ export const getRegistrationByCode = async (req, res) => {
   }
 };
 
-/**
- * POST /api/events/reject
- * Body: { registration_code, note? }
- */
-export const rejectRegistration = async (req, res) => {
-  try {
-    const { registration_code, note } = req.body;
-    if (!registration_code) return res.status(400).json({ ok: false, message: 'registration_code is required' });
-
-    const normalizedCode = registration_code.trim().toUpperCase();
-    const { data: reg, error: findError } = await supabase
-      .from('event_registrations')
-      .select('id, status, event:events (id, title), user:users!event_registrations_user_id_fkey (id, full_name, email)')
-      .eq('registration_code', normalizedCode)
-      .single();
-
-    if (findError || !reg) {
-      console.error('[rejectRegistration] Error or not found:', findError);
-      return res.status(404).json({ ok: false, message: `Registration code "${normalizedCode}" not found` });
-    }
-
-    if (reg.status !== 'registered') {
-      return res.status(400).json({
-        ok: false,
-        message: `Cannot reject a registration with status "${reg.status}"`,
-        data: { user: reg.user, event: reg.event, status: reg.status },
-      });
-    }
-
-    const rejectedAt = new Date().toISOString();
-    const { error: updateError } = await supabase
-      .from('event_registrations')
-      .update({ status: 'rejected', rejected_at: rejectedAt, rejection_note: note || null })
-      .eq('id', reg.id);
-
-    if (updateError) return res.status(500).json({ ok: false, message: updateError.message });
-
-    return res.status(200).json({
-      ok: true,
-      message: 'Registration rejected',
-      data: { user: reg.user, event: reg.event, status: 'rejected', rejection_note: note || null },
-    });
-  } catch (err) {
-    console.error('rejectRegistration error:', err);
-    return res.status(500).json({ ok: false, message: 'Internal server error' });
-  }
-};
 
 // ─── User — Registration ──────────────────────────────────────────────────────
 
@@ -424,7 +390,7 @@ export const getMyRegistration = async (req, res) => {
 
     const { data, error } = await supabase
       .from('event_registrations')
-      .select('id, status, registration_code, attended_at, rejected_at, rejection_note, created_at')
+      .select('id, status, registration_code, attended_at, created_at')
       .eq('event_id', eventId)
       .eq('user_id', userId)
       .maybeSingle();
@@ -449,7 +415,7 @@ export const getMyRegistrations = async (req, res) => {
     const { data, error } = await supabase
       .from('event_registrations')
       .select(`
-        id, status, registration_code, attended_at, rejected_at, rejection_note, created_at,
+        id, status, registration_code, attended_at, created_at,
         event:event_id (id, title, description, location, banner_url, start_time, end_time, status)
       `)
       .eq('user_id', userId)

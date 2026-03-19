@@ -38,13 +38,13 @@ export const getMyFines = async (req, res) => {
  */
 export const getAllFines = async (req, res) => {
     try {
-        const { user_id } = req.query;
+        const { user_id, role_id } = req.query;
 
         let query = supabase
             .from('fines')
             .select(`
         *,
-        user:users!fines_user_id_fkey1 (id, full_name, email),
+        user:users!fines_user_id_fkey1 (id, full_name, email, role_id, phone, identity_code),
         borrow_record:borrow_record_id (
           id,
           due_date,
@@ -57,6 +57,10 @@ export const getAllFines = async (req, res) => {
 
         if (user_id) {
             query = query.eq('user_id', user_id);
+        }
+
+        if (role_id) {
+          query = query.eq('user.role_id', role_id);
         }
 
         const { data: fines, error } = await query.order('created_at', { ascending: false });

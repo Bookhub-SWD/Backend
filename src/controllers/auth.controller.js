@@ -68,3 +68,87 @@ export const getMe = async (req, res) => {
     data: { user: req.user },
   });
 };
+
+/**
+ * PATCH /api/auth/me
+ * Update current user's profile (name, avatar)
+ */
+export const updateMe = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { full_name, avatar_url } = req.body;
+
+    const updateData = {};
+    if (full_name !== undefined) updateData.full_name = full_name;
+    if (avatar_url !== undefined) updateData.avatar_url = avatar_url;
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ ok: false, message: 'No data to update' });
+    }
+
+    const { data: updatedUser, error } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', userId)
+      .select('id, full_name, email, identity_code, address, status, avatar_url, roles(id, name)')
+      .single();
+
+    if (error) {
+      return res.status(500).json({ ok: false, message: error.message });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      message: 'Profile updated successfully',
+      data: { user: updatedUser }
+    });
+  } catch (err) {
+    console.error('updateMe error:', err);
+    return res.status(500).json({ ok: false, message: 'Internal server error' });
+  }
+};
+
+/**
+ * POST /api/auth/avatar
+ * Upload avatar image to Supabase Storage via Backend (bypass RLS)
+ */
+export const uploadAvatar = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ ok: false, message: 'No file uploaded' });
+    }
+
+    const file = req.file;
+    const userId = req.user.id;
+    const fileExt = file.originalname.split('.').pop() || 'jpg';
+    const fileName = `${userId}-${Date.now()}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    // Upload to Supabase Storage using service role client (bypass RLS)
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filePath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: true
+      });
+
+    if (uploadError) {
+      console.error('Supabase upload error:', uploadError);
+      return res.status(500).json({ ok: false, message: uploadError.message });
+    }
+
+    // Get public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(filePath);
+
+    return res.status(200).json({
+      ok: true,
+      message: 'Avatar uploaded successfully',
+      data: { publicUrl }
+    });
+  } catch (err) {
+    console.error('uploadAvatar error:', err);
+    return res.status(500).json({ ok: false, message: 'Internal server error' });
+  }
+};

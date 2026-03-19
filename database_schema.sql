@@ -142,6 +142,7 @@ CREATE TABLE public.posts (
   CONSTRAINT posts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
   CONSTRAINT posts_book_id_fkey FOREIGN KEY (book_id) REFERENCES public.books(id)
 );
+/* 
 CREATE TABLE public.reservations (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   user_id uuid NOT NULL DEFAULT auth.uid(),
@@ -153,6 +154,7 @@ CREATE TABLE public.reservations (
   CONSTRAINT reservations_book_id_fkey FOREIGN KEY (book_id) REFERENCES public.books(id),
   CONSTRAINT reservations_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
+*/
 CREATE TABLE public.reviews (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   user_id uuid NOT NULL DEFAULT auth.uid(),

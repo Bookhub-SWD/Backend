@@ -6,7 +6,6 @@ import {
   updateEvent,
   deleteEvent,
   checkInEvent,
-  rejectRegistration,
   registerEvent,
   cancelRegistration,
   getMyRegistration,
@@ -27,7 +26,6 @@ router.get('/events/my-registrations', authenticate, getMyRegistrations);
 
 // Admin/Librarian — static actions (BEFORE /:id)
 router.post('/events/check-in', authenticate, isInternal, checkInEvent);
-router.post('/events/reject', authenticate, isInternal, rejectRegistration);
 router.get('/events/registrations/check-code/:code', authenticate, isInternal, getRegistrationByCode);
 
 // Admin/Librarian — CRUD with dynamic :id

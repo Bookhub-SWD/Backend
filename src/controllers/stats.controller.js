@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase.js';
+import * as XLSX from 'xlsx';
 
 /**
  * GET /api/stats/dashboard
@@ -77,8 +78,6 @@ export const getDashboardStats = async (req, res) => {
     const borrowedToday = borrowedTodayRes.count ?? 0;
 
     // ── Monthly borrow trend ────────────────────────────────────────────────────
-
-    // ── Monthly borrow trend ────────────────────────────────────────────────────
     const monthLabels = Array.from({ length: 6 }, (_, i) => {
       const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
       return d.toLocaleDateString('vi-VN', { month: 'short', year: '2-digit' });
@@ -117,19 +116,13 @@ export const getDashboardStats = async (req, res) => {
     // ── Book categories breakdown ───────────────────────────────────────────────────
     const categoryBooksMap = {};
     (categoriesRes.data ?? []).forEach(item => {
-      // Use subject.category if available, fallback to subject.name, then 'Uncategorized'
       let catName = 'Uncategorized';
       if (item.subject) {
-        // If subject is an array (due to some postgrest setups), handle it
         const subjectObj = Array.isArray(item.subject) ? item.subject[0] : item.subject;
-        // Capitalize for better display and cleanliness
         const rawName = subjectObj?.category || subjectObj?.name || 'Uncategorized';
-        // Basic normalization to group similar categories
         catName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
       }
 
-      // Keep track of unique book_ids per category to avoid inflating the numbers 
-      // if a book has 2 subjects that both fall under the same category label.
       if (!categoryBooksMap[catName]) {
         categoryBooksMap[catName] = new Set();
       }
@@ -143,7 +136,6 @@ export const getDashboardStats = async (req, res) => {
       categoryMap[cat] = categoryBooksMap[cat].size;
     });
 
-    // Aesthetic color palette for categories
     const categoryColors = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899', '#14B8A6'];
     const bookCategories = Object.entries(categoryMap)
       .map(([name, count], index) => ({
@@ -152,14 +144,14 @@ export const getDashboardStats = async (req, res) => {
         color: categoryColors[index % categoryColors.length]
       }))
       .sort((a, b) => b.count - a.count)
-      .slice(0, 6); // Top 6 categories
+      .slice(0, 6);
 
     // ── Recent activity ─────────────────────────────────────────────────────────
     const recentActivity = (recentBorrowsRes.data ?? []).map(r => ({
       id: r.id,
       user: {
         name: r.user?.full_name || 'Unknown',
-        avatar: null, // avatar_url is not in our users table
+        avatar: null,
       },
       book: r.copy?.book?.title || 'Unknown book',
       action: r.status === 'returned' ? 'Return' : r.status === 'approved' ? 'Borrow' : 'Reserve',
@@ -184,7 +176,7 @@ export const getDashboardStats = async (req, res) => {
         trends: {
           borrowing: borrowingTrend,
           revenue: revenueTrend,
-          user_growth: borrowingTrend, // reuse as placeholder
+          user_growth: borrowingTrend,
         },
         book_status: bookStatus.length ? bookStatus : [
           { label: 'good', value: 1, color: '#22C55E' },
@@ -206,9 +198,8 @@ export const getDashboardStats = async (req, res) => {
 export const getBorrowingTrends = async (req, res) => {
   try {
     const now = new Date();
-    // Get Monday of current week
     const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
     const monday = new Date(now.setDate(diff));
     monday.setHours(0, 0, 0, 0);
 
@@ -216,9 +207,6 @@ export const getBorrowingTrends = async (req, res) => {
     sunday.setDate(monday.getDate() + 6);
     sunday.setHours(23, 59, 59, 999);
 
-    console.log(`Fetching trends from ${monday.toISOString()} to ${sunday.toISOString()}`);
-
-    // Fetch borrow records for this week
     const { data, error } = await supabase
       .from('borrow_records')
       .select('created_at')
@@ -227,7 +215,6 @@ export const getBorrowingTrends = async (req, res) => {
 
     if (error) throw error;
 
-    // Initialize map for the week (Mon -> Sun)
     const trendMap = [
       { name: 'Thứ 2', count: 0 },
       { name: 'Thứ 3', count: 0 },
@@ -238,9 +225,8 @@ export const getBorrowingTrends = async (req, res) => {
       { name: 'Chủ nhật', count: 0 }
     ];
 
-    const dayIndices = [6, 0, 1, 2, 3, 4, 5]; // Sunday=0 -> idx 6, Monday=1 -> idx 0...
+    const dayIndices = [6, 0, 1, 2, 3, 4, 5];
 
-    // Aggregate counts
     (data || []).forEach(r => {
       const d = new Date(r.created_at);
       const dayIndex = d.getDay();
@@ -260,3 +246,89 @@ export const getBorrowingTrends = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/stats/export
+ * Export full library data to Excel.
+ */
+export const exportLibraryReport = async (req, res) => {
+  try {
+    console.log('Generating Excel report...');
+    
+    // Fetch all data for reports
+    const [usersRes, booksRes, borrowsRes, finesRes] = await Promise.all([
+      supabase.from('users').select('id, full_name, email, phone, status, created_at'),
+      supabase.from('books').select('id, title, author, isbn, category:subjects(name), published_year'),
+      supabase.from('borrow_records').select('id, created_at, status, borrow_date, due_date, return_date, user:users(full_name), copy:book_copies(book:books(title))'),
+      supabase.from('fines').select('id, amount, status, paid_at, created_at, user:users(full_name), borrow_record:borrow_records(copy:book_copies(book:books(title)))')
+    ]);
+
+    if (usersRes.error) throw usersRes.error;
+    if (booksRes.error) throw booksRes.error;
+    if (borrowsRes.error) throw borrowsRes.error;
+    if (finesRes.error) throw finesRes.error;
+
+    // Prepare Sheets
+    const wb = XLSX.utils.book_new();
+
+    // 1. Users Sheet
+    const usersData = (usersRes.data || []).map(u => ({
+      'ID': u.id,
+      'Họ tên': u.full_name,
+      'Email': u.email,
+      'Số điện thoại': u.phone || 'N/A',
+      'Trạng thái': u.status,
+      'Ngày tham gia': new Date(u.created_at).toLocaleDateString('vi-VN')
+    }));
+    const wsUsers = XLSX.utils.json_to_sheet(usersData);
+    XLSX.utils.book_append_sheet(wb, wsUsers, 'Người dùng');
+
+    // 2. Books Sheet
+    const booksData = (booksRes.data || []).map(b => ({
+      'ID': b.id,
+      'Tiêu đề': b.title,
+      'Tác giả': b.author,
+      'ISBN': b.isbn || 'N/A',
+      'Thể loại': Array.isArray(b.category) ? b.category.map(c => c.name).join(', ') : b.category?.name || 'Chưa phân loại',
+      'Năm xuất bản': b.published_year || 'N/A'
+    }));
+    const wsBooks = XLSX.utils.json_to_sheet(booksData);
+    XLSX.utils.book_append_sheet(wb, wsBooks, 'Kho sách');
+
+    // 3. Borrows Sheet
+    const borrowsData = (borrowsRes.data || []).map(r => ({
+      'ID': r.id,
+      'Người mượn': r.user?.full_name || 'N/A',
+      'Sách': r.copy?.book?.title || 'N/A',
+      'Trạng thái': r.status,
+      'Ngày mượn': r.borrow_date ? new Date(r.borrow_date).toLocaleDateString('vi-VN') : 'N/A',
+      'Hạn trả': r.due_date ? new Date(r.due_date).toLocaleDateString('vi-VN') : 'N/A',
+      'Ngày trả thực tế': r.return_date ? new Date(r.return_date).toLocaleDateString('vi-VN') : '---'
+    }));
+    const wsBorrows = XLSX.utils.json_to_sheet(borrowsData);
+    XLSX.utils.book_append_sheet(wb, wsBorrows, 'Mượn trả');
+
+    // 4. Fines Sheet
+    const finesData = (finesRes.data || []).map(f => ({
+      'Số tiền (VND)': f.amount,
+      'Người nộp': f.user?.full_name || 'N/A',
+      'Lý do (Tên sách)': f.borrow_record?.copy?.book?.title || 'Phạt hệ thống',
+      'Trạng thái': f.status,
+      'Ngày thanh toán': f.paid_at ? new Date(f.paid_at).toLocaleDateString('vi-VN') : 'Chưa nộp',
+      'Ngày tạo': new Date(f.created_at).toLocaleDateString('vi-VN')
+    }));
+    const wsFines = XLSX.utils.json_to_sheet(finesData);
+    XLSX.utils.book_append_sheet(wb, wsFines, 'Tiền phạt');
+
+    // Generate buffer
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=BookHub_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
+    
+    return res.send(buf);
+
+  } catch (err) {
+    console.error('exportLibraryReport error:', err);
+    return res.status(500).json({ ok: false, message: 'Internal server error', error: err.message });
+  }
+};

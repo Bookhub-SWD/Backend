@@ -21,10 +21,8 @@ paths:
       responses:
         '201':
           description: Request created successfully (returns request_code)
-        '200':
-          description: No copies available, added to waiting list
         '400':
-          description: Already has active request/borrow or invalid input
+          description: Already has active request/borrow, no copies available, or invalid input
 
   /borrow/approve:
     post:
@@ -65,7 +63,7 @@ paths:
                 barcode: { type: string, description: "Physical book barcode" }
       responses:
         '200':
-          description: Book returned successfully (and next person in queue notified if any)
+          description: Book returned successfully
         '404':
           description: Copy or active borrow record not found
 
@@ -131,9 +129,3 @@ components:
         * `returned`: Book has been returned successfully.
         * `overdue`: Past the due date and not returned.
         * `cancelled`: Request was cancelled (by user or staff/librarian). Check `note` for reason.
-        
-        **reservations.status**
-        * `waiting`: In queue for an unavailable book.
-        * `notified`: A copy became available and the user was notified.
-        * `fulfilled`: User successfully converted reservation to a borrow request.
-        * `cancelled`: User left the queue.

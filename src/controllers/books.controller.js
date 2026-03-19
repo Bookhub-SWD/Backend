@@ -8,7 +8,7 @@ import * as xlsx from 'xlsx';
  */
 export const getBooks = async (req, res) => {
   try {
-    const { title, search, subject_code, category } = req.query;
+    const { title, search, subject_code, category, unclassified } = req.query;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const from = (page - 1) * limit;
@@ -32,7 +32,18 @@ export const getBooks = async (req, res) => {
     }
 
     // 2. Filter by Subjects (if code or category provided)
-    if (
+    if (unclassified === 'true') {
+      // Find all book_ids that HAVE a subject
+      const { data: bookSubjects } = await supabase
+        .from('book_subjects')
+        .select('book_id');
+      
+      const classifiedIds = bookSubjects ? [...new Set(bookSubjects.map(bs => bs.book_id))] : [];
+      
+      if (classifiedIds.length > 0) {
+        query = query.not('id', 'in', `(${classifiedIds.join(',')})`);
+      }
+    } else if (
       (subject_code && subject_code.trim() !== '') ||
       (category && category.trim() !== '')
     ) {
