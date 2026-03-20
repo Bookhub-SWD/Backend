@@ -241,29 +241,86 @@ export const deleteBook = async (req, res) => {
     const { id } = req.params;
 
     // 1. Kiểm tra xem sách có đang được mượn không
-    const { data: copies, error: copyError } = await supabase
+    const { data: borrowedCopies, error: borrowedError } = await supabase
       .from('book_copies')
-      .select('status')
+      .select('id, barcode')
       .eq('book_id', id)
       .eq('status', 'borrowed');
 
-    if (copyError) return res.status(400).json({ ok: false, message: copyError.message });
+    if (borrowedError) return res.status(400).json({ ok: false, message: borrowedError.message });
 
-    if (copies && copies.length > 0) {
-      return res.status(400).json({ ok: false, message: 'Không thể xóa sách đang có người mượn' });
+    if (borrowedCopies && borrowedCopies.length > 0) {
+      return res.status(400).json({ 
+        ok: false, 
+        message: `Không thể xóa sách vì có ${borrowedCopies.length} bản sao đang được mượn (${borrowedCopies.map(c => c.barcode).join(', ')}).` 
+      });
     }
 
-    // Xóa các bảng phụ thuộc
+    // 2. Lấy danh sách copy_ids để xóa borrow_records/fines
+    const { data: allCopies } = await supabase
+      .from('book_copies')
+      .select('id')
+      .eq('book_id', id);
+    
+    const copyIds = allCopies ? allCopies.map(c => c.id) : [];
+
+    // 3. Lấy danh sách post_ids để xóa comments/likes
+    const { data: allPosts } = await supabase
+      .from('posts')
+      .select('id')
+      .eq('book_id', id);
+    
+    const postIds = allPosts ? allPosts.map(p => p.id) : [];
+
+    // Xóa theo thứ tự từ dưới lên (dependent tables first)
+    
+    // Cleanup for Copies
+    if (copyIds.length > 0) {
+      // Delete fines associated with borrow records of these copies
+      const { data: borrowRecords } = await supabase
+        .from('borrow_records')
+        .select('id')
+        .in('copy_id', copyIds);
+      
+      if (borrowRecords && borrowRecords.length > 0) {
+        const brIds = borrowRecords.map(br => br.id);
+        await supabase.from('fines').delete().in('borrow_record_id', brIds);
+        await supabase.from('borrow_records').delete().in('id', brIds);
+      }
+      
+      // Delete copies
+      await supabase.from('book_copies').delete().in('id', copyIds);
+    }
+
+    // Cleanup for Posts
+    if (postIds.length > 0) {
+      await supabase.from('post_likes').delete().in('post_id', postIds);
+      await supabase.from('comments').delete().in('post_id', postIds);
+      await supabase.from('posts').delete().in('id', postIds);
+    }
+
+    // Cleanup for Books directly
     await supabase.from('book_subjects').delete().eq('book_id', id);
-    await supabase.from('book_copies').delete().eq('book_id', id);
+    await supabase.from('reviews').delete().eq('book_id', id);
+    await supabase.from('favorite_books').delete().eq('book_id', id);
+    // Add reservations cleanup just in case the table exists
+    try {
+      await supabase.from('reservations').delete().eq('book_id', id);
+    } catch (e) {
+      // Ignore if table doesn't exist
+    }
 
+    // 4. Cuối cùng mới xóa sách
     const { error } = await supabase.from('books').delete().eq('id', id);
-    if (error) return res.status(400).json({ ok: false, message: error.message });
+    if (error) {
+      console.error('Final book delete error:', error);
+      return res.status(400).json({ ok: false, message: 'Lỗi khi xóa bản ghi sách chính: ' + error.message });
+    }
 
-    return res.status(200).json({ ok: true, message: 'Xóa sách thành công' });
+    return res.status(200).json({ ok: true, message: 'Xóa sách và toàn bộ dữ liệu liên quan thành công' });
   } catch (err) {
     console.error('deleteBook error:', err);
-    return res.status(500).json({ ok: false, message: 'Internal server error' });
+    return res.status(500).json({ ok: false, message: 'Internal server error: ' + err.message });
   }
 };
 
